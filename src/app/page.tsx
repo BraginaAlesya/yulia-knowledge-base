@@ -1,69 +1,677 @@
-import Image from "next/image";
+"use client";
+
+import { useMemo, useState } from "react";
+
+type Kind = "Практика" | "Методика" | "Статья" | "Видео" | "Аудио" | "Заметка";
+type Status = "Опубликовано" | "Черновик" | "Архив";
+type Section =
+  | "Главная"
+  | "Материалы"
+  | "Категории"
+  | "Теги"
+  | "Архив"
+  | "Настройки";
+
+type Item = {
+  id: string;
+  title: string;
+  kind: Kind;
+  text: string;
+  tags: string[];
+  status: Status;
+  date: string;
+  icon: string;
+};
+
+const nav: { id: Section; icon: string }[] = [
+  { id: "Главная", icon: "⌂" },
+  { id: "Материалы", icon: "▤" },
+  { id: "Категории", icon: "◫" },
+  { id: "Теги", icon: "#" },
+  { id: "Архив", icon: "□" },
+  { id: "Настройки", icon: "⚙" },
+];
+
+const filterMap: Record<string, Kind | "all"> = {
+  "Все материалы": "all",
+  Практики: "Практика",
+  Методики: "Методика",
+  Статьи: "Статья",
+  Видео: "Видео",
+  Аудио: "Аудио",
+  Заметки: "Заметка",
+};
+
+const kindIcons: Record<Kind, string> = {
+  Практика: "◌",
+  Методика: "✦",
+  Статья: "☼",
+  Видео: "↗",
+  Аудио: "◒",
+  Заметка: "⌁",
+};
+
+const seed: Item[] = [
+  {
+    id: "chest",
+    title: "Работа с грудным отделом",
+    kind: "Практика",
+    text: "Мягкая последовательность для возвращения свободы дыханию и движениям грудной клетки.",
+    tags: ["дыхание", "напряжение", "грудной отдел"],
+    status: "Опубликовано",
+    date: "Сегодня",
+    icon: "◌",
+  },
+  {
+    id: "stability",
+    title: "Принципы телесной устойчивости",
+    kind: "Методика",
+    text: "Опорные идеи и наблюдения, на которых строится работа с телом.",
+    tags: ["основа", "методология"],
+    status: "Черновик",
+    date: "Вчера",
+    icon: "✦",
+  },
+  {
+    id: "attention",
+    title: "Практика возвращения внимания в тело",
+    kind: "Аудио",
+    text: "Короткая аудиопрактика для заземления и восстановления контакта с собой.",
+    tags: ["внимание", "заземление"],
+    status: "Опубликовано",
+    date: "12 июня",
+    icon: "◒",
+  },
+  {
+    id: "notes",
+    title: "Наблюдения после индивидуальных занятий",
+    kind: "Заметка",
+    text: "Живые заметки о том, как меняется восприятие тела в процессе занятий.",
+    tags: ["наблюдения", "занятия"],
+    status: "Черновик",
+    date: "10 июня",
+    icon: "⌁",
+  },
+  {
+    id: "fatigue",
+    title: "Как услышать сигналы усталости",
+    kind: "Статья",
+    text: "О внимательном отношении к ранним сигналам перегрузки и потребностям тела.",
+    tags: ["ресурс", "саморегуляция"],
+    status: "Опубликовано",
+    date: "8 июня",
+    icon: "☼",
+  },
+  {
+    id: "morning",
+    title: "Утренняя настройка на день",
+    kind: "Видео",
+    text: "Небольшая практика, чтобы начать день собранно, спокойно и с опорой.",
+    tags: ["утро", "ритуалы"],
+    status: "Опубликовано",
+    date: "3 июня",
+    icon: "↗",
+  },
+  {
+    id: "old-flow",
+    title: "Старый поток для шеи и плеч",
+    kind: "Практика",
+    text: "Ранняя версия последовательности. Оставлена в архиве, чтобы не путать с актуальной практикой.",
+    tags: ["шея", "плечи"],
+    status: "Архив",
+    date: "2 марта",
+    icon: "◌",
+  },
+];
+
+const emptyForm = {
+  title: "",
+  kind: "Практика" as Kind,
+  text: "",
+  tags: "",
+};
+
+function statusClass(status: Status) {
+  if (status === "Опубликовано") return "published";
+  if (status === "Черновик") return "draft";
+  return "archived";
+}
 
 export default function Home() {
+  const [section, setSection] = useState<Section>("Материалы");
+  const [tab, setTab] = useState("Все материалы");
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState(seed);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const live = items.filter((item) => item.status !== "Архив");
+  const archived = items.filter((item) => item.status === "Архив");
+  const selected = items.find((item) => item.id === selectedId) ?? null;
+
+  const shown = useMemo(() => {
+    const kind = filterMap[tab];
+    return items.filter((item) => {
+      if (item.status === "Архив") return false;
+      const matchesKind = kind === "all" || item.kind === kind;
+      const haystack = `${item.title} ${item.text} ${item.tags.join(" ")}`.toLowerCase();
+      return matchesKind && haystack.includes(query.trim().toLowerCase());
+    });
+  }, [items, query, tab]);
+
+  const categories = useMemo(() => {
+    return (Object.keys(kindIcons) as Kind[]).map((kind) => ({
+      kind,
+      icon: kindIcons[kind],
+      count: live.filter((item) => item.kind === kind).length,
+    }));
+  }, [live]);
+
+  const tags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of live) {
+      for (const tag of item.tags) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [live]);
+
+  function addMaterial() {
+    if (!form.title.trim() || !form.text.trim()) return;
+    const next: Item = {
+      id: `new-${Date.now()}`,
+      title: form.title.trim(),
+      kind: form.kind,
+      text: form.text.trim(),
+      tags: form.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      status: "Черновик",
+      date: "Сейчас",
+      icon: kindIcons[form.kind],
+    };
+    setItems((current) => [next, ...current]);
+    setForm(emptyForm);
+    setComposerOpen(false);
+    setSection("Материалы");
+    setSelectedId(next.id);
+  }
+
+  function updateStatus(id: string, status: Status) {
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, status } : item)),
+    );
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="app-shell">
+      {menuOpen ? (
+        <button
+          type="button"
+          className="nav-scrim"
+          aria-label="Закрыть меню"
+          onClick={() => setMenuOpen(false)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+      ) : null}
+
+      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
+        <div className="brand">
+          <b>Ю</b>
+          <span>
+            <strong>Дом телесной</strong>
+            устойчивости
+          </span>
+        </div>
+        <small className="workspace">Рабочее пространство</small>
+        <nav>
+          {nav.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={section === item.id ? "active" : ""}
+              onClick={() => {
+                setSection(item.id);
+                setMenuOpen(false);
+              }}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+              <i>{item.icon}</i>
+              {item.id}
+              {item.id === "Материалы" ? <em>{live.length}</em> : null}
+            </button>
+          ))}
+        </nav>
+        <div className="side-foot">
+          <p>
+            «Тело — это место,
+            <br />
+            куда всегда можно вернуться»
           </p>
+          <div className="profile">
+            <b>Ю</b>
+            <span>
+              <strong>Юлия</strong>
+              Автор пространства
+            </span>
+            <i>•••</i>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </aside>
+
+      <section className="content">
+        <header>
+          <span>
+            <button
+              type="button"
+              className="menu-btn"
+              onClick={() => setMenuOpen(true)}
+            >
+              Меню
+            </button>
+            Пространство Юлии / <strong>{section}</strong>
+          </span>
+          <aside>
+            <span>⌕</span>
+            <span>♧</span>
+            <b>Ю</b>
+          </aside>
+        </header>
+
+        <div className="body">
+          {section === "Главная" ? (
+            <>
+              <div className="heading">
+                <div>
+                  <small>Обзор пространства ✦</small>
+                  <h1>База знаний Юлии</h1>
+                  <p>Методология, практики и материалы в одном рабочем столе.</p>
+                </div>
+                <button
+                  type="button"
+                  className="add"
+                  onClick={() => setComposerOpen(true)}
+                >
+                  ＋ Добавить материал
+                </button>
+              </div>
+              <Stats items={items} />
+              <div className="section-title">
+                <div>
+                  <h2>
+                    Недавние материалы <small>{live.slice(0, 4).length}</small>
+                  </h2>
+                  <p>То, с чем команда работает прямо сейчас</p>
+                </div>
+              </div>
+              <MaterialGrid
+                items={live.slice(0, 4)}
+                onOpen={setSelectedId}
+              />
+            </>
+          ) : null}
+
+          {section === "Материалы" ? (
+            <>
+              <div className="heading">
+                <div>
+                  <small>Коллекция знаний ✦</small>
+                  <h1>База знаний</h1>
+                  <p>Методология, практики и материалы Юлии</p>
+                </div>
+                <button
+                  type="button"
+                  className="add"
+                  onClick={() => setComposerOpen(true)}
+                >
+                  ＋ Добавить материал
+                </button>
+              </div>
+              <Stats items={items} />
+              <div className="toolbar">
+                <label>
+                  ⌕
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Найти материал..."
+                  />
+                </label>
+                <button type="button">Сначала новые ⌄</button>
+              </div>
+              <div className="filters">
+                {Object.keys(filterMap).map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className={tab === name ? "chosen" : ""}
+                    onClick={() => setTab(name)}
+                  >
+                    {name}
+                    {name === "Все материалы" ? <sup>{live.length}</sup> : null}
+                  </button>
+                ))}
+              </div>
+              <div className="section-title">
+                <div>
+                  <h2>
+                    Материалы <small>{shown.length}</small>
+                  </h2>
+                  <p>Все знания в одном пространстве</p>
+                </div>
+                <span>▦ ☷</span>
+              </div>
+              {shown.length ? (
+                <MaterialGrid items={shown} onOpen={setSelectedId} />
+              ) : (
+                <Empty text="По этому запросу в коллекции пока пусто." />
+              )}
+            </>
+          ) : null}
+
+          {section === "Категории" ? (
+            <>
+              <PageIntro
+                kicker="Структура"
+                title="Категории"
+                text="Типы материалов, из которых складывается методология Юлии."
+              />
+              <div className="category-grid">
+                {categories.map((category) => (
+                  <button
+                    key={category.kind}
+                    type="button"
+                    className="category-card"
+                    onClick={() => {
+                      setTab(
+                        Object.entries(filterMap).find(
+                          ([, kind]) => kind === category.kind,
+                        )?.[0] ?? "Все материалы",
+                      );
+                      setSection("Материалы");
+                    }}
+                  >
+                    <span>{category.icon}</span>
+                    <strong>{category.kind}</strong>
+                    <small>{category.count} в коллекции</small>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+
+          {section === "Теги" ? (
+            <>
+              <PageIntro
+                kicker="Навигация"
+                title="Теги"
+                text="Живые темы, которыми помечены практики, статьи и заметки."
+              />
+              <div className="tag-cloud">
+                {tags.map(([tag, count]) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      setQuery(tag);
+                      setTab("Все материалы");
+                      setSection("Материалы");
+                    }}
+                  >
+                    #{tag}
+                    <em>{count}</em>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+
+          {section === "Архив" ? (
+            <>
+              <PageIntro
+                kicker="Память"
+                title="Архив"
+                text="Материалы, которые больше не показываем в рабочей коллекции."
+              />
+              {archived.length ? (
+                <MaterialGrid items={archived} onOpen={setSelectedId} />
+              ) : (
+                <Empty text="Архив пуст — всё ещё в живой коллекции." />
+              )}
+            </>
+          ) : null}
+
+          {section === "Настройки" ? (
+            <>
+              <PageIntro
+                kicker="Пространство"
+                title="Настройки"
+                text="Первый слой настроек. Пока без сервера — только вид рабочего места."
+              />
+              <div className="settings">
+                <label>
+                  Название пространства
+                  <input defaultValue="Дом телесной устойчивости" />
+                </label>
+                <label>
+                  Автор
+                  <input defaultValue="Юлия" />
+                </label>
+                <label>
+                  Тон базы знаний
+                  <input defaultValue="Тёплый, телесный, без давления" />
+                </label>
+                <p>Сохранение появится вместе с бэкендом. Сейчас это визуальный контур.</p>
+              </div>
+            </>
+          ) : null}
         </div>
-      </main>
+      </section>
+
+      {composerOpen ? (
+        <div className="modal-scrim">
+          <div className="modal">
+            <h2>Новый материал</h2>
+            <label>
+              Название
+              <input
+                value={form.title}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, title: event.target.value }))
+                }
+                placeholder="Как называется практика или заметка"
+              />
+            </label>
+            <label>
+              Тип
+              <select
+                value={form.kind}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    kind: event.target.value as Kind,
+                  }))
+                }
+              >
+                {(Object.keys(kindIcons) as Kind[]).map((kind) => (
+                  <option key={kind}>{kind}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Описание
+              <textarea
+                value={form.text}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, text: event.target.value }))
+                }
+                placeholder="Коротко, как это войдёт в базу знаний"
+              />
+            </label>
+            <label>
+              Теги через запятую
+              <input
+                value={form.tags}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, tags: event.target.value }))
+                }
+                placeholder="дыхание, утро, ресурс"
+              />
+            </label>
+            <div className="modal-actions">
+              <button type="button" onClick={() => setComposerOpen(false)}>
+                Отмена
+              </button>
+              <button type="button" className="add" onClick={addMaterial}>
+                Сохранить черновик
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {selected ? (
+        <div className="modal-scrim">
+          <div className="modal">
+            <small>{selected.kind}</small>
+            <h2>{selected.title}</h2>
+            <p>{selected.text}</p>
+            <div className="tags">
+              {selected.tags.map((tag) => (
+                <span key={tag}>#{tag}</span>
+              ))}
+            </div>
+            <div className="modal-actions">
+              {selected.status !== "Опубликовано" ? (
+                <button
+                  type="button"
+                  className="add"
+                  onClick={() => updateStatus(selected.id, "Опубликовано")}
+                >
+                  Опубликовать
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => updateStatus(selected.id, "Черновик")}
+                >
+                  Вернуть в черновик
+                </button>
+              )}
+              {selected.status !== "Архив" ? (
+                <button
+                  type="button"
+                  onClick={() => updateStatus(selected.id, "Архив")}
+                >
+                  В архив
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => updateStatus(selected.id, "Черновик")}
+                >
+                  Достать из архива
+                </button>
+              )}
+              <button type="button" onClick={() => setSelectedId(null)}>
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </main>
+  );
+}
+
+function Stats({ items }: { items: Item[] }) {
+  const live = items.filter((item) => item.status !== "Архив");
+  const published = live.filter((item) => item.status === "Опубликовано").length;
+  const drafts = live.filter((item) => item.status === "Черновик").length;
+
+  return (
+    <div className="stats">
+      {[
+        ["Всего материалов", String(live.length), "Живая коллекция без архива", "↗"],
+        ["Опубликовано", String(published), "Можно отдавать наружу", "◉"],
+        ["В черновиках", String(drafts), "Есть что доработать", "◌"],
+        ["Категории", "6", "Основных направлений", "⌘"],
+      ].map((row, index) => (
+        <div className={index === 3 ? "stat special" : "stat"} key={row[0]}>
+          <span>
+            {row[0]} {row[3]}
+          </span>
+          <strong>{row[1]}</strong>
+          <small>{row[2]}</small>
+        </div>
+      ))}
     </div>
   );
+}
+
+function MaterialGrid({
+  items,
+  onOpen,
+}: {
+  items: Item[];
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <div className="grid">
+      {items.map((item) => (
+        <article key={item.id}>
+          <div className="material-icon">{item.icon}</div>
+          <div className="card">
+            <div className="card-top">
+              <small>{item.kind}</small>
+              <button type="button" onClick={() => onOpen(item.id)}>
+                •••
+              </button>
+            </div>
+            <h3>
+              <button type="button" onClick={() => onOpen(item.id)}>
+                {item.title}
+              </button>
+            </h3>
+            <p>{item.text}</p>
+            <div className="tags">
+              {item.tags.map((tag) => (
+                <span key={tag}>#{tag}</span>
+              ))}
+            </div>
+            <footer>
+              <span className={statusClass(item.status)}>● {item.status}</span>
+              <time>{item.date}</time>
+            </footer>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function PageIntro({
+  kicker,
+  title,
+  text,
+}: {
+  kicker: string;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="heading">
+      <div>
+        <small>{kicker} ✦</small>
+        <h1>{title}</h1>
+        <p>{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return <div className="empty">{text}</div>;
 }
