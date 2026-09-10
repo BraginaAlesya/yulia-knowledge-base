@@ -1,48 +1,19 @@
-"use client";
+import KnowledgeBrowser from "@/components/knowledge-browser";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
-import { useMemo, useState } from "react";
-
-type Kind = "Практика" | "Методика" | "Статья" | "Видео" | "Аудио" | "Заметка";
-type Status = "Опубликовано" | "Черновик" | "Архив";
-type Section =
-  | "Главная"
-  | "Материалы"
-  | "Категории"
-  | "Теги"
-  | "Архив"
-  | "Настройки";
-
-type Item = {
+type Role = "owner" | "technical_admin" | "trainer" | "client";
+type MaterialRow = {
   id: string;
   title: string;
-  kind: Kind;
-  text: string;
+  kind: "Практика" | "Методика" | "Статья" | "Видео" | "Аудио" | "Заметка";
+  summary: string;
   tags: string[];
-  status: Status;
-  date: string;
-  icon: string;
+  status: "Опубликовано" | "Черновик" | "Архив";
+  created_at: string;
 };
 
-const nav: { id: Section; icon: string }[] = [
-  { id: "Главная", icon: "⌂" },
-  { id: "Материалы", icon: "▤" },
-  { id: "Категории", icon: "◫" },
-  { id: "Теги", icon: "#" },
-  { id: "Архив", icon: "□" },
-  { id: "Настройки", icon: "⚙" },
-];
-
-const filterMap: Record<string, Kind | "all"> = {
-  "Все материалы": "all",
-  Практики: "Практика",
-  Методики: "Методика",
-  Статьи: "Статья",
-  Видео: "Видео",
-  Аудио: "Аудио",
-  Заметки: "Заметка",
-};
-
-const kindIcons: Record<Kind, string> = {
+const kindIcons: Record<MaterialRow["kind"], string> = {
   Практика: "◌",
   Методика: "✦",
   Статья: "☼",
@@ -51,627 +22,87 @@ const kindIcons: Record<Kind, string> = {
   Заметка: "⌁",
 };
 
-const seed: Item[] = [
-  {
-    id: "chest",
-    title: "Работа с грудным отделом",
-    kind: "Практика",
-    text: "Мягкая последовательность для возвращения свободы дыханию и движениям грудной клетки.",
-    tags: ["дыхание", "напряжение", "грудной отдел"],
-    status: "Опубликовано",
-    date: "Сегодня",
-    icon: "◌",
-  },
-  {
-    id: "stability",
-    title: "Принципы телесной устойчивости",
-    kind: "Методика",
-    text: "Опорные идеи и наблюдения, на которых строится работа с телом.",
-    tags: ["основа", "методология"],
-    status: "Черновик",
-    date: "Вчера",
-    icon: "✦",
-  },
-  {
-    id: "attention",
-    title: "Практика возвращения внимания в тело",
-    kind: "Аудио",
-    text: "Короткая аудиопрактика для заземления и восстановления контакта с собой.",
-    tags: ["внимание", "заземление"],
-    status: "Опубликовано",
-    date: "12 июня",
-    icon: "◒",
-  },
-  {
-    id: "notes",
-    title: "Наблюдения после индивидуальных занятий",
-    kind: "Заметка",
-    text: "Живые заметки о том, как меняется восприятие тела в процессе занятий.",
-    tags: ["наблюдения", "занятия"],
-    status: "Черновик",
-    date: "10 июня",
-    icon: "⌁",
-  },
-  {
-    id: "fatigue",
-    title: "Как услышать сигналы усталости",
-    kind: "Статья",
-    text: "О внимательном отношении к ранним сигналам перегрузки и потребностям тела.",
-    tags: ["ресурс", "саморегуляция"],
-    status: "Опубликовано",
-    date: "8 июня",
-    icon: "☼",
-  },
-  {
-    id: "morning",
-    title: "Утренняя настройка на день",
-    kind: "Видео",
-    text: "Небольшая практика, чтобы начать день собранно, спокойно и с опорой.",
-    tags: ["утро", "ритуалы"],
-    status: "Опубликовано",
-    date: "3 июня",
-    icon: "↗",
-  },
-  {
-    id: "old-flow",
-    title: "Старый поток для шеи и плеч",
-    kind: "Практика",
-    text: "Ранняя версия последовательности. Оставлена в архиве, чтобы не путать с актуальной практикой.",
-    tags: ["шея", "плечи"],
-    status: "Архив",
-    date: "2 марта",
-    icon: "◌",
-  },
-];
-
-const emptyForm = {
-  title: "",
-  kind: "Практика" as Kind,
-  text: "",
-  tags: "",
-};
-
-function statusClass(status: Status) {
-  if (status === "Опубликовано") return "published";
-  if (status === "Черновик") return "draft";
-  return "archived";
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(
+    new Date(value),
+  );
 }
 
-export default function Home() {
-  const [section, setSection] = useState<Section>("Материалы");
-  const [tab, setTab] = useState("Все материалы");
-  const [query, setQuery] = useState("");
-  const [items, setItems] = useState(seed);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const live = items.filter((item) => item.status !== "Архив");
-  const archived = items.filter((item) => item.status === "Архив");
-  const selected = items.find((item) => item.id === selectedId) ?? null;
+  if (!user) redirect("/login");
 
-  const shown = useMemo(() => {
-    const kind = filterMap[tab];
-    return items.filter((item) => {
-      if (item.status === "Архив") return false;
-      const matchesKind = kind === "all" || item.kind === kind;
-      const haystack = `${item.title} ${item.text} ${item.tags.join(" ")}`.toLowerCase();
-      return matchesKind && haystack.includes(query.trim().toLowerCase());
-    });
-  }, [items, query, tab]);
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, role")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  const categories = useMemo(() => {
-    return (Object.keys(kindIcons) as Kind[]).map((kind) => ({
-      kind,
-      icon: kindIcons[kind],
-      count: live.filter((item) => item.kind === kind).length,
+  if (!profile) redirect("/access-pending");
+
+  const role = profile.role as Role;
+
+  if (role === "owner") {
+    const { data } = await supabase
+      .from("materials")
+      .select("id, title, kind, summary, tags, status, created_at")
+      .order("created_at", { ascending: false });
+
+    const items = ((data ?? []) as MaterialRow[]).map((item) => ({
+      id: item.id,
+      title: item.title,
+      kind: item.kind,
+      text: item.summary,
+      tags: item.tags ?? [],
+      status: item.status,
+      date: formatDate(item.created_at),
+      icon: kindIcons[item.kind],
     }));
-  }, [live]);
 
-  const tags = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of live) {
-      for (const tag of item.tags) {
-        counts.set(tag, (counts.get(tag) ?? 0) + 1);
-      }
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [live]);
-
-  function addMaterial() {
-    if (!form.title.trim() || !form.text.trim()) return;
-    const next: Item = {
-      id: `new-${Date.now()}`,
-      title: form.title.trim(),
-      kind: form.kind,
-      text: form.text.trim(),
-      tags: form.tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      status: "Черновик",
-      date: "Сейчас",
-      icon: kindIcons[form.kind],
-    };
-    setItems((current) => [next, ...current]);
-    setForm(emptyForm);
-    setComposerOpen(false);
-    setSection("Материалы");
-    setSelectedId(next.id);
+    return <KnowledgeBrowser initialItems={items} />;
   }
 
-  function updateStatus(id: string, status: Status) {
-    setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, status } : item)),
-    );
-  }
+  return <RoleCabinet name={profile.full_name || user.email || "Пользователь"} role={role} />;
+}
+
+function RoleCabinet({ name, role }: { name: string; role: Exclude<Role, "owner"> }) {
+  const content = {
+    technical_admin: {
+      kicker: "Технический кабинет",
+      title: "Пространство управления",
+      text: "Здесь будут интеграции бота, расписание, таблицы и технические настройки. Материалы Юлии закрыты для этой роли.",
+      card: "Следующий шаг — подключить управление пользователями и аналитику из Google Sheets.",
+    },
+    trainer: {
+      kicker: "Кабинет преподавателя",
+      title: "Ваши материалы и обучение",
+      text: "Здесь появятся назначенные Юлией курсы, материалы, заметки и отметки о прохождении.",
+      card: "Пока вам ещё не назначены материалы.",
+    },
+    client: {
+      kicker: "Личный кабинет",
+      title: "Ваше расписание",
+      text: "Здесь будут только ваши ближайшие занятия, напоминания и ссылка на запись через бота.",
+      card: "Ближайших занятий пока нет.",
+    },
+  }[role];
 
   return (
-    <main className="app-shell">
-      {menuOpen ? (
-        <button
-          type="button"
-          className="nav-scrim"
-          aria-label="Закрыть меню"
-          onClick={() => setMenuOpen(false)}
-        />
-      ) : null}
-
-      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
-        <div className="brand">
-          <b>Ю</b>
-          <span>
-            <strong>Дом телесной</strong>
-            устойчивости
-          </span>
-        </div>
-        <small className="workspace">Рабочее пространство</small>
-        <nav>
-          {nav.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={section === item.id ? "active" : ""}
-              onClick={() => {
-                setSection(item.id);
-                setMenuOpen(false);
-              }}
-            >
-              <i>{item.icon}</i>
-              {item.id}
-              {item.id === "Материалы" ? <em>{live.length}</em> : null}
-            </button>
-          ))}
-        </nav>
-        <div className="side-foot">
-          <p>
-            «Тело — это место,
-            <br />
-            куда всегда можно вернуться»
-          </p>
-          <div className="profile">
-            <b>Ю</b>
-            <span>
-              <strong>Юлия</strong>
-              Автор пространства
-            </span>
-            <i>•••</i>
-          </div>
-        </div>
-      </aside>
-
-      <section className="content">
-        <header>
-          <span>
-            <button
-              type="button"
-              className="menu-btn"
-              onClick={() => setMenuOpen(true)}
-            >
-              Меню
-            </button>
-            Пространство Юлии / <strong>{section}</strong>
-          </span>
-          <aside>
-            <span>⌕</span>
-            <span>♧</span>
-            <b>Ю</b>
-          </aside>
-        </header>
-
-        <div className="body">
-          {section === "Главная" ? (
-            <>
-              <div className="heading">
-                <div>
-                  <small>Обзор пространства ✦</small>
-                  <h1>База знаний Юлии</h1>
-                  <p>Методология, практики и материалы в одном рабочем столе.</p>
-                </div>
-                <button
-                  type="button"
-                  className="add"
-                  onClick={() => setComposerOpen(true)}
-                >
-                  ＋ Добавить материал
-                </button>
-              </div>
-              <Stats items={items} />
-              <div className="section-title">
-                <div>
-                  <h2>
-                    Недавние материалы <small>{live.slice(0, 4).length}</small>
-                  </h2>
-                  <p>То, с чем команда работает прямо сейчас</p>
-                </div>
-              </div>
-              <MaterialGrid
-                items={live.slice(0, 4)}
-                onOpen={setSelectedId}
-              />
-            </>
-          ) : null}
-
-          {section === "Материалы" ? (
-            <>
-              <div className="heading">
-                <div>
-                  <small>Коллекция знаний ✦</small>
-                  <h1>База знаний</h1>
-                  <p>Методология, практики и материалы Юлии</p>
-                </div>
-                <button
-                  type="button"
-                  className="add"
-                  onClick={() => setComposerOpen(true)}
-                >
-                  ＋ Добавить материал
-                </button>
-              </div>
-              <Stats items={items} />
-              <div className="toolbar">
-                <label>
-                  ⌕
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Найти материал..."
-                  />
-                </label>
-                <button type="button">Сначала новые ⌄</button>
-              </div>
-              <div className="filters">
-                {Object.keys(filterMap).map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    className={tab === name ? "chosen" : ""}
-                    onClick={() => setTab(name)}
-                  >
-                    {name}
-                    {name === "Все материалы" ? <sup>{live.length}</sup> : null}
-                  </button>
-                ))}
-              </div>
-              <div className="section-title">
-                <div>
-                  <h2>
-                    Материалы <small>{shown.length}</small>
-                  </h2>
-                  <p>Все знания в одном пространстве</p>
-                </div>
-                <span>▦ ☷</span>
-              </div>
-              {shown.length ? (
-                <MaterialGrid items={shown} onOpen={setSelectedId} />
-              ) : (
-                <Empty text="По этому запросу в коллекции пока пусто." />
-              )}
-            </>
-          ) : null}
-
-          {section === "Категории" ? (
-            <>
-              <PageIntro
-                kicker="Структура"
-                title="Категории"
-                text="Типы материалов, из которых складывается методология Юлии."
-              />
-              <div className="category-grid">
-                {categories.map((category) => (
-                  <button
-                    key={category.kind}
-                    type="button"
-                    className="category-card"
-                    onClick={() => {
-                      setTab(
-                        Object.entries(filterMap).find(
-                          ([, kind]) => kind === category.kind,
-                        )?.[0] ?? "Все материалы",
-                      );
-                      setSection("Материалы");
-                    }}
-                  >
-                    <span>{category.icon}</span>
-                    <strong>{category.kind}</strong>
-                    <small>{category.count} в коллекции</small>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : null}
-
-          {section === "Теги" ? (
-            <>
-              <PageIntro
-                kicker="Навигация"
-                title="Теги"
-                text="Живые темы, которыми помечены практики, статьи и заметки."
-              />
-              <div className="tag-cloud">
-                {tags.map(([tag, count]) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => {
-                      setQuery(tag);
-                      setTab("Все материалы");
-                      setSection("Материалы");
-                    }}
-                  >
-                    #{tag}
-                    <em>{count}</em>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : null}
-
-          {section === "Архив" ? (
-            <>
-              <PageIntro
-                kicker="Память"
-                title="Архив"
-                text="Материалы, которые больше не показываем в рабочей коллекции."
-              />
-              {archived.length ? (
-                <MaterialGrid items={archived} onOpen={setSelectedId} />
-              ) : (
-                <Empty text="Архив пуст — всё ещё в живой коллекции." />
-              )}
-            </>
-          ) : null}
-
-          {section === "Настройки" ? (
-            <>
-              <PageIntro
-                kicker="Пространство"
-                title="Настройки"
-                text="Первый слой настроек. Пока без сервера — только вид рабочего места."
-              />
-              <div className="settings">
-                <label>
-                  Название пространства
-                  <input defaultValue="Дом телесной устойчивости" />
-                </label>
-                <label>
-                  Автор
-                  <input defaultValue="Юлия" />
-                </label>
-                <label>
-                  Тон базы знаний
-                  <input defaultValue="Тёплый, телесный, без давления" />
-                </label>
-                <p>Сохранение появится вместе с бэкендом. Сейчас это визуальный контур.</p>
-              </div>
-            </>
-          ) : null}
-        </div>
+    <main className="role-cabinet">
+      <header className="role-header">
+        <div className="role-brand"><b>В</b><span>Взмах к себе<br />Дом телесной устойчивости</span></div>
+        <form action="/auth/signout" method="post"><button type="submit">Выйти</button></form>
+      </header>
+      <section className="role-content">
+        <small>{content.kicker}</small>
+        <h1>Здравствуйте, {name}</h1>
+        <p>{content.text}</p>
+        <div className="role-card">{content.card}</div>
       </section>
-
-      {composerOpen ? (
-        <div className="modal-scrim">
-          <div className="modal">
-            <h2>Новый материал</h2>
-            <label>
-              Название
-              <input
-                value={form.title}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, title: event.target.value }))
-                }
-                placeholder="Как называется практика или заметка"
-              />
-            </label>
-            <label>
-              Тип
-              <select
-                value={form.kind}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    kind: event.target.value as Kind,
-                  }))
-                }
-              >
-                {(Object.keys(kindIcons) as Kind[]).map((kind) => (
-                  <option key={kind}>{kind}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Описание
-              <textarea
-                value={form.text}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, text: event.target.value }))
-                }
-                placeholder="Коротко, как это войдёт в базу знаний"
-              />
-            </label>
-            <label>
-              Теги через запятую
-              <input
-                value={form.tags}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, tags: event.target.value }))
-                }
-                placeholder="дыхание, утро, ресурс"
-              />
-            </label>
-            <div className="modal-actions">
-              <button type="button" onClick={() => setComposerOpen(false)}>
-                Отмена
-              </button>
-              <button type="button" className="add" onClick={addMaterial}>
-                Сохранить черновик
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {selected ? (
-        <div className="modal-scrim">
-          <div className="modal">
-            <small>{selected.kind}</small>
-            <h2>{selected.title}</h2>
-            <p>{selected.text}</p>
-            <div className="tags">
-              {selected.tags.map((tag) => (
-                <span key={tag}>#{tag}</span>
-              ))}
-            </div>
-            <div className="modal-actions">
-              {selected.status !== "Опубликовано" ? (
-                <button
-                  type="button"
-                  className="add"
-                  onClick={() => updateStatus(selected.id, "Опубликовано")}
-                >
-                  Опубликовать
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => updateStatus(selected.id, "Черновик")}
-                >
-                  Вернуть в черновик
-                </button>
-              )}
-              {selected.status !== "Архив" ? (
-                <button
-                  type="button"
-                  onClick={() => updateStatus(selected.id, "Архив")}
-                >
-                  В архив
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => updateStatus(selected.id, "Черновик")}
-                >
-                  Достать из архива
-                </button>
-              )}
-              <button type="button" onClick={() => setSelectedId(null)}>
-                Закрыть
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </main>
   );
-}
-
-function Stats({ items }: { items: Item[] }) {
-  const live = items.filter((item) => item.status !== "Архив");
-  const published = live.filter((item) => item.status === "Опубликовано").length;
-  const drafts = live.filter((item) => item.status === "Черновик").length;
-
-  return (
-    <div className="stats">
-      {[
-        ["Всего материалов", String(live.length), "Живая коллекция без архива", "↗"],
-        ["Опубликовано", String(published), "Можно отдавать наружу", "◉"],
-        ["В черновиках", String(drafts), "Есть что доработать", "◌"],
-        ["Категории", "6", "Основных направлений", "⌘"],
-      ].map((row, index) => (
-        <div className={index === 3 ? "stat special" : "stat"} key={row[0]}>
-          <span>
-            {row[0]} {row[3]}
-          </span>
-          <strong>{row[1]}</strong>
-          <small>{row[2]}</small>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function MaterialGrid({
-  items,
-  onOpen,
-}: {
-  items: Item[];
-  onOpen: (id: string) => void;
-}) {
-  return (
-    <div className="grid">
-      {items.map((item) => (
-        <article key={item.id}>
-          <div className="material-icon">{item.icon}</div>
-          <div className="card">
-            <div className="card-top">
-              <small>{item.kind}</small>
-              <button type="button" onClick={() => onOpen(item.id)}>
-                •••
-              </button>
-            </div>
-            <h3>
-              <button type="button" onClick={() => onOpen(item.id)}>
-                {item.title}
-              </button>
-            </h3>
-            <p>{item.text}</p>
-            <div className="tags">
-              {item.tags.map((tag) => (
-                <span key={tag}>#{tag}</span>
-              ))}
-            </div>
-            <footer>
-              <span className={statusClass(item.status)}>● {item.status}</span>
-              <time>{item.date}</time>
-            </footer>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function PageIntro({
-  kicker,
-  title,
-  text,
-}: {
-  kicker: string;
-  title: string;
-  text: string;
-}) {
-  return (
-    <div className="heading">
-      <div>
-        <small>{kicker} ✦</small>
-        <h1>{title}</h1>
-        <p>{text}</p>
-      </div>
-    </div>
-  );
-}
-
-function Empty({ text }: { text: string }) {
-  return <div className="empty">{text}</div>;
 }

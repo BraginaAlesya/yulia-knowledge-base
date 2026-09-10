@@ -653,6 +653,163 @@ textarea {
   cursor: pointer;
 }
 
+.form-error,
+.login-error {
+  margin: 0;
+  color: #9b4037;
+  font-size: 13px;
+}
+
+.role-cabinet,
+.login-page {
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.role-header {
+  height: 76px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 7vw;
+}
+
+.role-brand,
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #7f6154;
+  font: 13px/1.2 var(--serif);
+}
+
+.role-brand b,
+.login-brand b {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font: 18px var(--serif);
+}
+
+.role-header button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #725f54;
+  background: #fff;
+  padding: 9px 14px;
+  cursor: pointer;
+}
+
+.role-content {
+  max-width: 750px;
+  margin: 0 auto;
+  padding: 110px 32px;
+}
+
+.role-content > small,
+.login-card > small {
+  color: #aa9487;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.role-content h1,
+.login-card h1 {
+  margin: 12px 0;
+  font: 500 clamp(34px, 5vw, 54px)/1.08 var(--serif);
+  letter-spacing: -1.5px;
+}
+
+.role-content > p,
+.login-card > p {
+  max-width: 570px;
+  color: #8f8178;
+  line-height: 1.65;
+}
+
+.role-card {
+  margin-top: 40px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f6efe9;
+  color: #755d51;
+  padding: 28px;
+  line-height: 1.55;
+}
+
+.login-page {
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+
+.login-card {
+  width: min(470px, 100%);
+  padding: 42px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fffdfb;
+  box-shadow: 0 20px 60px rgb(86 61 47 / 8%);
+}
+
+.login-brand {
+  margin-bottom: 42px;
+}
+
+.login-card form {
+  display: grid;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.login-card label,
+.settings label,
+.modal label {
+  display: grid;
+  gap: 7px;
+  color: #76675e;
+  font-size: 12px;
+}
+
+.login-card input,
+.settings input,
+.modal input,
+.modal select,
+.modal textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 11px 12px;
+  outline-color: #b89885;
+}
+
+.login-card button {
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  padding: 13px 16px;
+  cursor: pointer;
+}
+
+.login-card button:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+
+.login-success {
+  color: #61765d !important;
+  font-size: 13px;
+}
+
 @media (max-width: 1100px) {
   .category-grid,
   .tag-cloud {
@@ -723,5 +880,17 @@ textarea {
 
   .toolbar label {
     width: 100%;
+  }
+
+  .role-header {
+    padding: 0 20px;
+  }
+
+  .role-content {
+    padding: 72px 24px;
+  }
+
+  .login-card {
+    padding: 30px 22px;
   }
 }
