@@ -805,6 +805,16 @@ textarea {
   opacity: .7;
 }
 
+.callback-link {
+  display: inline-flex;
+  margin-top: 18px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  padding: 13px 16px;
+  text-decoration: none;
+}
+
 .login-success {
   color: #61765d !important;
   font-size: 13px;
