@@ -20,10 +20,28 @@ export default function AuthCallbackPage() {
       if (session) continueToCabinet();
     });
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) setHasError(true);
-      if (data.session) continueToCabinet();
-    });
+    async function finishSignIn() {
+      const url = new URL(window.location.href);
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      const accessToken = hash.get("access_token");
+      const refreshToken = hash.get("refresh_token");
+      const code = url.searchParams.get("code");
+
+      const result = accessToken && refreshToken
+        ? await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        : code
+          ? await supabase.auth.exchangeCodeForSession(code)
+          : await supabase.auth.getSession();
+
+      if (result.error || !result.data.session) {
+        setHasError(true);
+        return;
+      }
+
+      continueToCabinet();
+    }
+
+    void finishSignIn();
 
     const timeout = window.setTimeout(() => {
       if (!finished) setHasError(true);
