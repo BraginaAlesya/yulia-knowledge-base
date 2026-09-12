@@ -1,10 +1,13 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -13,10 +16,11 @@ export default function LoginPage() {
     setState("sending");
     setErrorMessage("");
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      password,
     });
+
     if (error) {
       setErrorMessage(error.message);
       setState("error");
@@ -24,6 +28,7 @@ export default function LoginPage() {
     }
 
     setState("sent");
+    router.replace("/");
   }
 
   return (
@@ -32,7 +37,7 @@ export default function LoginPage() {
         <div className="login-brand"><b>В</b><span>Взмах к себе<br />Дом телесной устойчивости</span></div>
         <small>Закрытая платформа</small>
         <h1>Войдите в своё пространство</h1>
-        <p>Введите почту — пришлём безопасную ссылку для входа. Пароль не понадобится.</p>
+        <p>Введите почту и пароль, которые вы получили от администратора.</p>
         <form onSubmit={signIn}>
           <label>
             Электронная почта
@@ -44,12 +49,22 @@ export default function LoginPage() {
               placeholder="you@example.com"
             />
           </label>
+          <label>
+            Пароль
+            <input
+              required
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
           <button type="submit" disabled={state === "sending"}>
-            {state === "sending" ? "Отправляем…" : "Получить ссылку для входа"}
+            {state === "sending" ? "Проверяем…" : "Войти"}
           </button>
         </form>
-        {state === "sent" ? <p className="login-success">Ссылка отправлена. Откройте письмо на этой почте.</p> : null}
-        {state === "error" ? <p className="login-error">Не получилось отправить ссылку: {errorMessage}</p> : null}
+        {state === "sent" ? <p className="login-success">Вход выполнен. Открываем ваше пространство…</p> : null}
+        {state === "error" ? <p className="login-error">Не получилось войти: {errorMessage}</p> : null}
       </section>
     </main>
   );
