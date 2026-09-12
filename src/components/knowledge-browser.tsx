@@ -245,7 +245,7 @@ export default function KnowledgeBrowser({ initialItems }: { initialItems: Item[
                   ＋ Добавить материал
                 </button>
               </div>
-              <Stats items={items} />
+              
               <div className="section-title">
                 <div>
                   <h2>
@@ -277,7 +277,7 @@ export default function KnowledgeBrowser({ initialItems }: { initialItems: Item[
                   ＋ Добавить материал
                 </button>
               </div>
-              <Stats items={items} />
+              
               <div className="toolbar">
                 <label>
                   ⌕
@@ -532,31 +532,6 @@ export default function KnowledgeBrowser({ initialItems }: { initialItems: Item[
         </div>
       ) : null}
     </main>
-  );
-}
-
-function Stats({ items }: { items: Item[] }) {
-  const live = items.filter((item) => item.status !== "Архив");
-  const published = live.filter((item) => item.status === "Опубликовано").length;
-  const drafts = live.filter((item) => item.status === "Черновик").length;
-
-  return (
-    <div className="stats">
-      {[
-        ["Всего материалов", String(live.length), "Живая коллекция без архива", "↗"],
-        ["Опубликовано", String(published), "Можно отдавать наружу", "◉"],
-        ["В черновиках", String(drafts), "Есть что доработать", "◌"],
-        ["Категории", "6", "Основных направлений", "⌘"],
-      ].map((row, index) => (
-        <div className={index === 3 ? "stat special" : "stat"} key={row[0]}>
-          <span>
-            {row[0]} {row[3]}
-          </span>
-          <strong>{row[1]}</strong>
-          <small>{row[2]}</small>
-        </div>
-      ))}
-    </div>
   );
 }
 
