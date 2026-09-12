@@ -6,16 +6,24 @@ import { FormEvent, useState } from "react";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState("sending");
+    setErrorMessage("");
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
-    setState(error ? "error" : "sent");
+    if (error) {
+      setErrorMessage(error.message);
+      setState("error");
+      return;
+    }
+
+    setState("sent");
   }
 
   return (
@@ -41,7 +49,7 @@ export default function LoginPage() {
           </button>
         </form>
         {state === "sent" ? <p className="login-success">Ссылка отправлена. Откройте письмо на этой почте.</p> : null}
-        {state === "error" ? <p className="login-error">Не получилось отправить ссылку. Проверьте адрес и повторите.</p> : null}
+        {state === "error" ? <p className="login-error">Не получилось отправить ссылку: {errorMessage}</p> : null}
       </section>
     </main>
   );
