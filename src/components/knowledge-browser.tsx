@@ -106,7 +106,9 @@ export default function KnowledgeBrowser({
   role: Role;
   name: string;
 }) {
-  const [hydrated, setHydrated] = useState(false); useEffect(() => setHydrated(true), []); const owner = hydrated && role === "owner";
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  const owner = hydrated && role === "owner";
   const [section, setSection] = useState<Section>(role === "client" ? "Клиентам" : "Главная");
   const [tab, setTab] = useState("Все материалы");
   const [query, setQuery] = useState("");
