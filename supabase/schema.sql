@@ -108,3 +108,53 @@ with check ((select public.current_role()) = 'owner');
 -- where id = (select id from auth.users where email = 'julia@example.com');
 -- update public.profiles set full_name = 'Алеся', role = 'technical_admin'
 -- where id = (select id from auth.users where email = 'alesya@example.com');
+
+-- Library foundation: folders and role-based visibility.
+-- Safe to run once after the initial schema above.
+create table if not exists public.folders (
+  id uuid primary key default gen_random_uuid(),
+  title text not null unique check (char_length(title) between 1 and 80),
+  description text,
+  created_by uuid not null references public.profiles(id) on delete restrict,
+  created_at timestamptz not null default now()
+);
+
+alter table public.materials
+  add column if not exists folder_id uuid references public.folders(id) on delete set null,
+  add column if not exists access_roles public.app_role[] not null default array[]::public.app_role[],
+  add column if not exists content_blocks jsonb not null default '[]'::jsonb,
+  add column if not exists content_schema_version integer not null default 1;
+
+alter table public.folders enable row level security;
+
+drop policy if exists "Only the owner sees all materials; assigned users see their own" on public.materials;
+create policy "Material visibility follows role"
+on public.materials for select to authenticated
+using (
+  (select public.current_role()) = 'owner'
+  or (
+    status = 'Опубликовано'
+    and (select public.current_role()) = any(access_roles)
+  )
+);
+
+create policy "Only owners manage folders"
+on public.folders for all to authenticated
+using ((select public.current_role()) = 'owner')
+with check ((select public.current_role()) = 'owner');
+
+-- Trainers and clients can see a folder title only when it contains a material
+-- already available to their role. They cannot create or change folders.
+drop policy if exists "Visible folders follow visible materials" on public.folders;
+create policy "Visible folders follow visible materials"
+on public.folders for select to authenticated
+using (
+  (select public.current_role()) = 'owner'
+  or exists (
+    select 1
+    from public.materials
+    where materials.folder_id = folders.id
+      and materials.status = 'Опубликовано'
+      and (select public.current_role()) = any(materials.access_roles)
+  )
+);
