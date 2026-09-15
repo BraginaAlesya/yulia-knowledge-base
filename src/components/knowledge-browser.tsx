@@ -382,12 +382,10 @@ export default function KnowledgeBrowser({
             </button>
           ))}
         </nav>
-        <div className="side-foot">
-          <p>
-            «Тело — опора в жизни»
-            
-            
-          </p>
+          <div className="side-foot">
+            <p>
+              «Тело — опора в жизни»
+            </p>
           <div className="profile">
             <b>{name.slice(0, 1).toUpperCase()}</b>
             <span>
