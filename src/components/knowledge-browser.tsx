@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ContentBlockEditor,
   ContentBlockRenderer,
@@ -106,7 +106,7 @@ export default function KnowledgeBrowser({
   role: Role;
   name: string;
 }) {
-  const owner = useSyncExternalStore(() => () => {}, () => role === "owner", () => false);
+  const [hydrated, setHydrated] = useState(false); useEffect(() => setHydrated(true), []); const owner = hydrated && role === "owner";
   const [section, setSection] = useState<Section>(role === "client" ? "Клиентам" : "Главная");
   const [tab, setTab] = useState("Все материалы");
   const [query, setQuery] = useState("");
