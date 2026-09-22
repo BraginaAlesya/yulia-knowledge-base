@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   ContentBlockEditor,
   ContentBlockRenderer,
@@ -106,7 +106,7 @@ export default function KnowledgeBrowser({
   role: Role;
   name: string;
 }) {
-  const owner = role === "owner";
+  const owner = useSyncExternalStore(() => () => {}, () => role === "owner", () => false);
   const [section, setSection] = useState<Section>(role === "client" ? "Клиентам" : "Главная");
   const [tab, setTab] = useState("Все материалы");
   const [query, setQuery] = useState("");
@@ -382,9 +382,9 @@ export default function KnowledgeBrowser({
         </nav>
         <div className="side-foot">
           <p>
-            «Тело — это место,
-            <br />
-            куда всегда можно вернуться»
+            «Тело — опора в жизни»
+            
+            
           </p>
           <div className="profile">
             <b>{name.slice(0, 1).toUpperCase()}</b>
