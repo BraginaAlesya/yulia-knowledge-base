@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   ContentBlockEditor,
   ContentBlockRenderer,
@@ -106,8 +106,15 @@ export default function KnowledgeBrowser({
   role: Role;
   name: string;
 }) {
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
+  // The auth cookie can be refreshed between the server render and the first
+  // browser render in development. Show permission-based controls only after
+  // React has mounted so both versions of the initial markup stay identical.
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
   const owner = hydrated && role === "owner";
   const [section, setSection] = useState<Section>(role === "client" ? "Клиентам" : "Главная");
   const [tab, setTab] = useState("Все материалы");
