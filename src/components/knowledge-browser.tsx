@@ -417,6 +417,7 @@ export default function KnowledgeBrowser({
             Пространство Юлии / <strong>{section}</strong>
           </span>
           <aside>
+            {owner ? <a className="operations-link" href="/operations">Управление</a> : null}
             <form action="/auth/signout" method="post">
               <button type="submit" className="signout">Выйти</button>
             </form>
