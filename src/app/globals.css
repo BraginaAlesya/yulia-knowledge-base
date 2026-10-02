@@ -290,7 +290,10 @@ textarea {
 .operations-heading p { font-size: 14px; color: #a19187; margin: 10px 0 0; }
 .sync-note { border: 1px solid #eadfd6; border-radius: 10px; background: #fffaf6; padding: 13px 16px; display: flex; gap: 10px; align-items: baseline; margin-bottom: 22px; color: #7b665c; font-size: 12px; }
 .sync-note strong { color: #62463d; }
-.operations-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+.operations-filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 18px; }
+.operations-filters label { display: grid; gap: 5px; color: #9d897e; font-size: 10px; text-transform: uppercase; letter-spacing: .7px; }
+.operations-filters select { min-width: 156px; border: 1px solid #e8ddd4; border-radius: 8px; background: #fffdfb; color: #684f45; padding: 8px 10px; font: inherit; text-transform: none; letter-spacing: normal; }
+.operations-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
 .operation-metric { background: #f4ede6; border: 1px solid #eee4dc; border-radius: 12px; padding: 18px 20px; min-height: 128px; }
 .operation-metric.highlighted { background: #eadbd1; }
 .operation-metric span { display: block; color: #9e8f85; font-size: 11px; }
@@ -318,6 +321,7 @@ textarea {
 .booking-list { margin-top: 20px; padding-top: 18px; border-top: 1px solid #eee4dc; }.booking-list h3 { font: 500 18px var(--serif); margin: 0 0 10px; }.booking-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 1px solid #f1ebe5; }.booking-row strong, .booking-row small { display: block; }.booking-row strong { color: #5b4239; font-size: 12px; }.booking-row small { color: #9b8a80; font-size: 10px; margin-top: 3px; }.booking-actions { display: flex; gap: 6px; flex-wrap: wrap; }.booking-actions button { border: 1px solid #eadfd6; background: #fff; color: #765c51; border-radius: 7px; padding: 6px 8px; cursor: pointer; font-size: 10px; }.booking-actions button:hover { background: #f1e4db; }.empty-operation { color: #a19187; font-size: 12px; }.command-notice { margin: 14px 0 0; color: #75574c; font-size: 12px; }
 
 @media (max-width: 900px) { .operations-header { padding: 0 22px; }.operations-body { padding: 32px 22px 60px; }.operations-heading { align-items: flex-start; flex-direction: column; }.operations-stats { grid-template-columns: repeat(2, 1fr); }.operations-grid { grid-template-columns: 1fr; }.session-list { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .operations-header { height: 62px; padding: 0 16px; }.operations-header span { display: none; }.operations-body { padding: 24px 16px 48px; }.operations-heading h1 { font-size: 34px; }.operations-filters { display: grid; grid-template-columns: 1fr; }.operations-filters select { width: 100%; }.operations-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }.operation-metric { min-height: 112px; padding: 14px; }.operation-metric strong { font-size: 26px; margin-top: 10px; }.sheet-link { width: 100%; text-align: center; }.sync-note { align-items: flex-start; flex-direction: column; } }
 
 .filter-row,
 .tag-filter,

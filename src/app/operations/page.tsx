@@ -21,23 +21,28 @@ export default async function OperationsPage() {
   // settings and diagnostics area.
   if (role !== "owner") redirect("/");
 
-  const since = new Date();
+  const now = new Date();
+  const since = new Date(now);
   since.setDate(since.getDate() - 30);
+  const activitySince = new Date(now);
+  activitySince.setDate(activitySince.getDate() - 90);
   const upcoming = new Date();
   upcoming.setHours(0, 0, 0, 0);
 
-  const [clientsResult, membershipsResult, paymentsResult, sessionsResult, bookingsResult, funnelResult] = await Promise.all([
-    supabase.from("crm_clients").select("source_id, full_name, phone").order("full_name"),
+  const [clientsResult, membershipsResult, paymentsResult, sessionsResult, bookingsResult, funnelResult, trainersResult, syncResult] = await Promise.all([
+    supabase.from("crm_clients").select("source_id, full_name, acquisition_source").order("full_name"),
     supabase.from("crm_memberships").select("source_id, client_source_id, practices_left, status, ends_at"),
     supabase.from("crm_payments").select("source_id, client_source_id, amount, paid_at").gte("paid_at", since.toISOString()),
-    supabase.from("crm_sessions").select("source_id, starts_at, direction, subtitle, capacity, is_active").gte("starts_at", upcoming.toISOString()).order("starts_at").limit(40),
+    supabase.from("crm_sessions").select("source_id, starts_at, direction, subtitle, capacity, is_active, trainer_source_id").gte("starts_at", activitySince.toISOString()).order("starts_at").limit(240),
     supabase.from("crm_bookings").select("source_id, client_source_id, session_source_id, booking_type, status, custom_title, custom_starts_at, created_at").order("created_at", { ascending: false }).limit(800),
     supabase.from("crm_funnel").select("client_source_id, status, updated_at"),
+    supabase.from("crm_trainers").select("source_id, display_name").eq("is_active", true).order("display_name"),
+    supabase.from("crm_sync_state").select("last_success_at").eq("source", "telegram_bot").maybeSingle(),
   ]);
 
   const errors = [
     clientsResult.error, membershipsResult.error, paymentsResult.error,
-    sessionsResult.error, bookingsResult.error, funnelResult.error,
+    sessionsResult.error, bookingsResult.error, funnelResult.error, trainersResult.error,
   ].filter(Boolean);
 
   return (
@@ -49,6 +54,9 @@ export default async function OperationsPage() {
       sessions={sessionsResult.data ?? []}
       bookings={bookingsResult.data ?? []}
       funnel={funnelResult.data ?? []}
+      trainers={trainersResult.data ?? []}
+      referenceNow={now.toISOString()}
+      lastSyncedAt={syncResult.data?.last_success_at ?? null}
       sourceReady={!errors.length}
     />
   );

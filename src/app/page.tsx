@@ -40,7 +40,11 @@ function formatDate(value: string) {
   );
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -57,6 +61,11 @@ export default async function Home() {
   if (!profile) redirect("/access-pending");
 
   const role = profile.role as Role;
+  const params = await searchParams;
+
+  // Юлия начинает день со сводки, а библиотека остаётся доступна по явной
+  // ссылке из кабинета. Остальные роли по-прежнему открывают свою витрину.
+  if (role === "owner" && params.view !== "materials") redirect("/operations");
 
   const { data: materials } = await supabase
     .from("materials")
