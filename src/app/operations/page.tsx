@@ -16,7 +16,10 @@ export default async function OperationsPage() {
     .maybeSingle();
 
   const role = profile?.role as Role | undefined;
-  if (role !== "owner" && role !== "technical_admin") redirect("/");
+  // This screen contains payments and personal data.  Technical access is
+  // intentionally kept out of it; it will have a separate, non-sensitive
+  // settings and diagnostics area.
+  if (role !== "owner") redirect("/");
 
   const since = new Date();
   since.setDate(since.getDate() - 30);

@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile || !["owner", "technical_admin"].includes(profile.role)) {
+  if (!profile || profile.role !== "owner") {
     return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
   }
 

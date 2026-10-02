@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 type Client = { source_id: number; full_name: string; phone: string | null };
 type Membership = { source_id: number; client_source_id: number; practices_left: number; status: string; ends_at: string | null };
@@ -60,7 +61,7 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   return (
     <main className="operations-shell">
       <header className="operations-header">
-        <a href="/" className="back-link">← База знаний</a>
+        <Link href="/" className="back-link">← База знаний</Link>
         <span>{name} · кабинет владельца</span>
       </header>
       <div className="operations-body">
