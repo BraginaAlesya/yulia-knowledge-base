@@ -66,6 +66,8 @@ export default async function Home({
   // Юлия начинает день со сводки, а библиотека остаётся доступна по явной
   // ссылке из кабинета. Остальные роли по-прежнему открывают свою витрину.
   if (role === "owner" && params.view !== "materials") redirect("/operations");
+  if (role === "client" && params.view !== "materials") redirect("/client");
+  if (role === "trainer" && params.view !== "materials") redirect("/trainer");
 
   const { data: materials } = await supabase
     .from("materials")

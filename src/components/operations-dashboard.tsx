@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type Client = { source_id: number; full_name: string; acquisition_source: string | null };
+type Client = { source_id: number; full_name: string; acquisition_source: string | null; email: string | null; access_state: string };
 type Membership = { source_id: number; client_source_id: number; practices_left: number; status: string; ends_at: string | null };
 type Payment = { source_id: number; client_source_id: number; amount: number; paid_at: string };
 type Session = { source_id: number; starts_at: string; direction: string; subtitle: string | null; capacity: number; is_active: boolean; trainer_source_id: number | null };
 type Booking = { source_id: number; client_source_id: number; session_source_id: number | null; booking_type: string; status: string; custom_title: string | null; custom_starts_at: string | null; created_at: string | null };
 type Funnel = { client_source_id: number; status: string; updated_at: string | null };
 type Trainer = { source_id: number; display_name: string };
+type AccountLink = { account_id: string; client_source_id: number };
 
 const formatMoney = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 const formatDateTime = new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -24,7 +25,7 @@ function statusLabel(status: string) {
   return ({ booked: "Записан", attended: "Пришла", no_show: "Не пришла", cancelled: "Отменена", late_cancel: "Поздняя отмена" } as Record<string, string>)[status] || status;
 }
 
-export default function OperationsDashboard({ name, clients, memberships, payments, sessions, bookings, funnel, trainers, referenceNow, lastSyncedAt, sourceReady }: {
+export default function OperationsDashboard({ name, clients, memberships, payments, sessions, bookings, funnel, trainers, accountLinks, referenceNow, lastSyncedAt, sourceReady }: {
   name: string;
   clients: Client[];
   memberships: Membership[];
@@ -33,6 +34,7 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   bookings: Booking[];
   funnel: Funnel[];
   trainers: Trainer[];
+  accountLinks: AccountLink[];
   referenceNow: string;
   lastSyncedAt: string | null;
   sourceReady: boolean;
@@ -42,6 +44,7 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   const [trainerFilter, setTrainerFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [notice, setNotice] = useState("");
+  const [accessNotice, setAccessNotice] = useState("");
   const now = useMemo(() => new Date(referenceNow), [referenceNow]);
   const today = dateKey(referenceNow);
   const recentLimit = new Date(now);
@@ -80,8 +83,8 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   }, [relevantBookings]);
   const relevantPayments = payments.filter((payment) => selectedClientIds.has(payment.client_source_id));
   const revenue = relevantPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
-  const activeMemberships = memberships.filter((membership) => membership.status === "active" && membership.practices_left > 0 && selectedClientIds.has(membership.client_source_id));
-  const activeClientIds = new Set(activeMemberships.map((membership) => membership.client_source_id));
+  const activeMemberships = useMemo(() => memberships.filter((membership) => membership.status === "active" && membership.practices_left > 0 && selectedClientIds.has(membership.client_source_id)), [memberships, selectedClientIds]);
+  const activeClientIds = useMemo(() => new Set(activeMemberships.map((membership) => membership.client_source_id)), [activeMemberships]);
   const lastAttendance = useMemo(() => {
     const dates = new Map<number, Date>();
     relevantBookings.forEach((booking) => {
@@ -100,6 +103,17 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
     return endsSoon || membership.practices_left <= 2;
   });
   const attentionFunnel = funnel.filter((item) => selectedClientIds.has(item.client_source_id) && ["lead", "contacted", "thinking"].includes(item.status));
+  const linkedClientIds = useMemo(() => new Set(accountLinks.map((link) => link.client_source_id)), [accountLinks]);
+  const accessQueue = useMemo(() => clients.map((client) => {
+    const hasActiveMembership = activeClientIds.has(client.source_id);
+    const linked = linkedClientIds.has(client.source_id);
+    const state = linked
+      ? (hasActiveMembership ? "Кабинет активен" : "Кабинет сохранён")
+      : !client.email ? "Нужна почта"
+      : hasActiveMembership ? "Готов открыть доступ" : "Нет абонемента";
+    return { ...client, state, priority: state === "Готов открыть доступ" ? 0 : state === "Нужна почта" && hasActiveMembership ? 1 : 2 };
+  }).sort((a, b) => a.priority - b.priority || a.full_name.localeCompare(b.full_name, "ru")), [activeClientIds, clients, linkedClientIds]);
+  const accessReady = accessQueue.filter((item) => item.state === "Готов открыть доступ");
   const funnelStages = [
     ["lead", "Заявки"], ["trial_booked", "Пробные"], ["trial_attended", "Пришли"], ["sold", "Купили"],
   ] as const;
@@ -114,6 +128,17 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
       body: JSON.stringify({ action, bookingSourceId, attended }),
     });
     setNotice(response.ok ? "Готово: бот обработает действие в течение минуты. Затем обновите страницу." : "Не получилось передать действие. Попробуйте ещё раз.");
+  }
+
+  async function issueClientAccess(clientSourceId: number) {
+    setAccessNotice("Передаём запрос боту…");
+    const response = await fetch("/api/operations/access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientSourceId }),
+    });
+    const payload = await response.json().catch(() => ({})) as { message?: string; error?: string };
+    setAccessNotice(response.ok ? `${payload.message ?? "Запрос передан"}.` : payload.error ?? "Не удалось передать запрос.");
   }
 
   return (
@@ -149,6 +174,7 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
             <p><b>{inactiveClients.length}</b> давно не были</p><p><b>{endingMemberships.length}</b> пора предложить продление</p><p><b>{attentionFunnel.length}</b> ждут следующего шага</p>
           </div>
         </section>
+        <section className="operation-panel access-panel"><div className="panel-title"><div><small>Доступы к платформе</small><h2>Кому открыть кабинет</h2></div><span>{accessReady.length} готовы</span></div><p className="access-panel-intro">После покупки абонемента бот создаст доступ и отправит клиенту временный пароль в Telegram. Пароль нигде не хранится в открытом виде.</p><div className="access-queue">{accessQueue.slice(0, 8).map((client) => <div key={client.source_id}><span><strong>{client.full_name}</strong><small>{client.email || "Почта не указана"}</small></span><aside><em className={client.state === "Готов открыть доступ" ? "ready" : ""}>{client.state}</em>{client.state === "Готов открыть доступ" ? <button type="button" onClick={() => issueClientAccess(client.source_id)}>Открыть</button> : null}</aside></div>)}</div>{accessNotice ? <p className="command-notice">{accessNotice}</p> : null}</section>
         <section className="operation-panel schedule-panel"><div className="panel-title"><div><small>Расписание</small><h2>Ближайшие тренировки</h2></div><span>Нажмите, чтобы увидеть состав группы</span></div>
           <div className="session-list">{upcomingSessions.length ? upcomingSessions.map((session) => { const sessionBookings = (bookingsBySession.get(session.source_id) ?? []).filter((booking) => booking.status === "booked"); return <button type="button" key={session.source_id} className={activeSession === session.source_id ? "session-card selected" : "session-card"} onClick={() => setChosenSession(session.source_id)}><time>{formatDateTime.format(new Date(session.starts_at))}</time><span><strong>{session.direction}</strong><small>{session.subtitle || "Практика"}</small></span><em>{sessionBookings.length}/{session.capacity}</em></button>; }) : <p className="empty-operation">По выбранным фильтрам ближайших практик нет.</p>}</div>
           {activeSession ? <div className="booking-list"><h3>Записаны на тренировку</h3>{selectedBookings.length ? selectedBookings.map((booking) => <div className="booking-row" key={booking.source_id}><span><strong>{clientById.get(booking.client_source_id)?.full_name || "Клиент"}</strong><small>{statusLabel(booking.status)}</small></span>{booking.status === "booked" ? <div className="booking-actions"><button type="button" onClick={() => sendCommand("attendance", booking.source_id, true)}>Пришла</button><button type="button" onClick={() => sendCommand("attendance", booking.source_id, false)}>Не пришла</button><button type="button" onClick={() => sendCommand("cancel_booking", booking.source_id)}>Отменить</button></div> : null}</div>) : <p className="empty-operation">Пока никто не записан.</p>}</div> : null}

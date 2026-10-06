@@ -29,14 +29,15 @@ export default async function OperationsPage() {
   const upcoming = new Date();
   upcoming.setHours(0, 0, 0, 0);
 
-  const [clientsResult, membershipsResult, paymentsResult, sessionsResult, bookingsResult, funnelResult, trainersResult, syncResult] = await Promise.all([
-    supabase.from("crm_clients").select("source_id, full_name, acquisition_source").order("full_name"),
+  const [clientsResult, membershipsResult, paymentsResult, sessionsResult, bookingsResult, funnelResult, trainersResult, accountLinksResult, syncResult] = await Promise.all([
+    supabase.from("crm_clients").select("source_id, full_name, acquisition_source, email, access_state").order("full_name"),
     supabase.from("crm_memberships").select("source_id, client_source_id, practices_left, status, ends_at"),
     supabase.from("crm_payments").select("source_id, client_source_id, amount, paid_at").gte("paid_at", since.toISOString()),
     supabase.from("crm_sessions").select("source_id, starts_at, direction, subtitle, capacity, is_active, trainer_source_id").gte("starts_at", activitySince.toISOString()).order("starts_at").limit(240),
     supabase.from("crm_bookings").select("source_id, client_source_id, session_source_id, booking_type, status, custom_title, custom_starts_at, created_at").order("created_at", { ascending: false }).limit(800),
     supabase.from("crm_funnel").select("client_source_id, status, updated_at"),
     supabase.from("crm_trainers").select("source_id, display_name").eq("is_active", true).order("display_name"),
+    supabase.from("crm_account_clients").select("account_id, client_source_id"),
     supabase.from("crm_sync_state").select("last_success_at").eq("source", "telegram_bot").maybeSingle(),
   ]);
 
@@ -55,6 +56,7 @@ export default async function OperationsPage() {
       bookings={bookingsResult.data ?? []}
       funnel={funnelResult.data ?? []}
       trainers={trainersResult.data ?? []}
+      accountLinks={accountLinksResult.data ?? []}
       referenceNow={now.toISOString()}
       lastSyncedAt={syncResult.data?.last_success_at ?? null}
       sourceReady={!errors.length}
