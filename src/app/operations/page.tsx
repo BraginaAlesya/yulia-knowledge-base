@@ -29,7 +29,7 @@ export default async function OperationsPage() {
   const upcoming = new Date();
   upcoming.setHours(0, 0, 0, 0);
 
-  const [clientsResult, membershipsResult, paymentsResult, sessionsResult, bookingsResult, funnelResult, trainersResult, accountLinksResult, syncResult] = await Promise.all([
+  const [clientsResult, membershipsResult, paymentsResult, sessionsResult, bookingsResult, funnelResult, trainersResult, accountLinksResult, syncResult, auditResult] = await Promise.all([
     supabase.from("crm_clients").select("source_id, full_name, acquisition_source, email, access_state").order("full_name"),
     supabase.from("crm_memberships").select("source_id, client_source_id, practices_left, status, ends_at"),
     supabase.from("crm_payments").select("source_id, client_source_id, amount, paid_at").gte("paid_at", since.toISOString()),
@@ -39,6 +39,7 @@ export default async function OperationsPage() {
     supabase.from("crm_trainers").select("source_id, display_name").eq("is_active", true).order("display_name"),
     supabase.from("crm_account_clients").select("account_id, client_source_id"),
     supabase.from("crm_sync_state").select("last_success_at").eq("source", "telegram_bot").maybeSingle(),
+    supabase.from("crm_audit_log").select("id, action, entity_type, entity_source_id, details, created_at").order("created_at", { ascending: false }).limit(20),
   ]);
 
   const errors = [
@@ -57,6 +58,7 @@ export default async function OperationsPage() {
       funnel={funnelResult.data ?? []}
       trainers={trainersResult.data ?? []}
       accountLinks={accountLinksResult.data ?? []}
+      auditRecords={auditResult.data ?? []}
       referenceNow={now.toISOString()}
       lastSyncedAt={syncResult.data?.last_success_at ?? null}
       sourceReady={!errors.length}

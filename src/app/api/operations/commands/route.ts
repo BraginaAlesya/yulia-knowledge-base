@@ -34,5 +34,12 @@ export async function POST(request: Request) {
     requested_by: user.id,
   });
   if (error) return NextResponse.json({ error: "Не удалось передать действие боту" }, { status: 500 });
+  await supabase.from("crm_audit_log").insert({
+    actor_id: user.id,
+    action: body.action,
+    entity_type: "booking",
+    entity_source_id: body.bookingSourceId,
+    details: { state: "queued", attended: body.attended ?? null, message: "Действие передано боту" },
+  });
   return NextResponse.json({ ok: true });
 }

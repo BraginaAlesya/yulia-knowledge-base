@@ -12,6 +12,7 @@ type Booking = { source_id: number; client_source_id: number; session_source_id:
 type Funnel = { client_source_id: number; status: string; updated_at: string | null };
 type Trainer = { source_id: number; display_name: string };
 type AccountLink = { account_id: string; client_source_id: number };
+type AuditRecord = { id: string; action: string; entity_type: string; entity_source_id: number | null; details: Record<string, unknown>; created_at: string };
 
 const formatMoney = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 const formatDateTime = new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -25,7 +26,13 @@ function statusLabel(status: string) {
   return ({ booked: "Записан", attended: "Пришла", no_show: "Не пришла", cancelled: "Отменена", late_cancel: "Поздняя отмена" } as Record<string, string>)[status] || status;
 }
 
-export default function OperationsDashboard({ name, clients, memberships, payments, sessions, bookings, funnel, trainers, accountLinks, referenceNow, lastSyncedAt, sourceReady }: {
+function auditLabel(record: AuditRecord) {
+  const result = record.details?.message;
+  if (typeof result === "string" && result) return result;
+  return ({ attendance: "Обновлено посещение", cancel_booking: "Отменена запись", book_session: "Создана запись", join_waitlist: "Клиент добавлен в лист ожидания", finish_session: "Практика завершена", issue_client_access: "Открыт клиентский кабинет", family_linked: "Связаны семейные профили" } as Record<string, string>)[record.action] ?? "Обновлены данные";
+}
+
+export default function OperationsDashboard({ name, clients, memberships, payments, sessions, bookings, funnel, trainers, accountLinks, auditRecords, referenceNow, lastSyncedAt, sourceReady }: {
   name: string;
   clients: Client[];
   memberships: Membership[];
@@ -35,6 +42,7 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   funnel: Funnel[];
   trainers: Trainer[];
   accountLinks: AccountLink[];
+  auditRecords: AuditRecord[];
   referenceNow: string;
   lastSyncedAt: string | null;
   sourceReady: boolean;
@@ -45,6 +53,9 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   const [sourceFilter, setSourceFilter] = useState("all");
   const [notice, setNotice] = useState("");
   const [accessNotice, setAccessNotice] = useState("");
+  const [familyNotice, setFamilyNotice] = useState("");
+  const [guardianClientId, setGuardianClientId] = useState("");
+  const [childClientId, setChildClientId] = useState("");
   const now = useMemo(() => new Date(referenceNow), [referenceNow]);
   const today = dateKey(referenceNow);
   const recentLimit = new Date(now);
@@ -141,6 +152,18 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
     setAccessNotice(response.ok ? `${payload.message ?? "Запрос передан"}.` : payload.error ?? "Не удалось передать запрос.");
   }
 
+  async function linkFamily() {
+    setFamilyNotice("Связываем кабинеты…");
+    const response = await fetch("/api/operations/family", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guardianClientId: Number(guardianClientId), childClientId: Number(childClientId) }),
+    });
+    const payload = await response.json().catch(() => ({})) as { message?: string; error?: string };
+    setFamilyNotice(response.ok ? `${payload.message ?? "Готово"}.` : payload.error ?? "Не получилось связать кабинеты.");
+    if (response.ok) router.refresh();
+  }
+
   return (
     <main className="operations-shell">
       <header className="operations-header">
@@ -175,6 +198,8 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
           </div>
         </section>
         <section className="operation-panel access-panel"><div className="panel-title"><div><small>Доступы к платформе</small><h2>Кому открыть кабинет</h2></div><span>{accessReady.length} готовы</span></div><p className="access-panel-intro">После покупки абонемента бот создаст доступ и отправит клиенту временный пароль в Telegram. Пароль нигде не хранится в открытом виде.</p><div className="access-queue">{accessQueue.slice(0, 8).map((client) => <div key={client.source_id}><span><strong>{client.full_name}</strong><small>{client.email || "Почта не указана"}</small></span><aside><em className={client.state === "Готов открыть доступ" ? "ready" : ""}>{client.state}</em>{client.state === "Готов открыть доступ" ? <button type="button" onClick={() => issueClientAccess(client.source_id)}>Открыть</button> : null}</aside></div>)}</div>{accessNotice ? <p className="command-notice">{accessNotice}</p> : null}</section>
+        <section className="operation-panel family-panel"><div className="panel-title"><div><small>Семейный доступ</small><h2>Родитель и ребёнок</h2></div><span>{accountLinks.filter((link) => link.client_source_id !== Number(guardianClientId)).length ? "Можно связать" : ""}</span></div><p>Один взрослый кабинет может переключаться между профилями детей. У ребёнка при этом может оставаться свой собственный вход.</p><div className="family-form"><label>Родитель<select value={guardianClientId} onChange={(event) => setGuardianClientId(event.target.value)}><option value="">Выберите клиента с кабинетом</option>{accountLinks.map((link) => <option key={link.account_id + link.client_source_id} value={link.client_source_id}>{clientById.get(link.client_source_id)?.full_name || "Клиент"}</option>)}</select></label><label>Ребёнок<select value={childClientId} onChange={(event) => setChildClientId(event.target.value)}><option value="">Выберите ребёнка</option>{clients.filter((client) => String(client.source_id) !== guardianClientId).map((client) => <option key={client.source_id} value={client.source_id}>{client.full_name}</option>)}</select></label><button type="button" disabled={!guardianClientId || !childClientId} onClick={linkFamily}>Связать</button></div>{familyNotice ? <p className="command-notice">{familyNotice}</p> : null}</section>
+        <section className="operation-panel audit-panel"><div className="panel-title"><div><small>История</small><h2>Последние действия</h2></div><span>Сохраняется отдельно</span></div><div className="audit-list">{auditRecords.length ? auditRecords.map((record) => <div key={record.id}><span>{formatDateTime.format(new Date(record.created_at))}</span><strong>{auditLabel(record)}</strong></div>) : <p className="empty-operation">Здесь появится история действий по кабинету, записям и доступам.</p>}</div></section>
         <section className="operation-panel schedule-panel"><div className="panel-title"><div><small>Расписание</small><h2>Ближайшие тренировки</h2></div><span>Нажмите, чтобы увидеть состав группы</span></div>
           <div className="session-list">{upcomingSessions.length ? upcomingSessions.map((session) => { const sessionBookings = (bookingsBySession.get(session.source_id) ?? []).filter((booking) => booking.status === "booked"); return <button type="button" key={session.source_id} className={activeSession === session.source_id ? "session-card selected" : "session-card"} onClick={() => setChosenSession(session.source_id)}><time>{formatDateTime.format(new Date(session.starts_at))}</time><span><strong>{session.direction}</strong><small>{session.subtitle || "Практика"}</small></span><em>{sessionBookings.length}/{session.capacity}</em></button>; }) : <p className="empty-operation">По выбранным фильтрам ближайших практик нет.</p>}</div>
           {activeSession ? <div className="booking-list"><h3>Записаны на тренировку</h3>{selectedBookings.length ? selectedBookings.map((booking) => <div className="booking-row" key={booking.source_id}><span><strong>{clientById.get(booking.client_source_id)?.full_name || "Клиент"}</strong><small>{statusLabel(booking.status)}</small></span>{booking.status === "booked" ? <div className="booking-actions"><button type="button" onClick={() => sendCommand("attendance", booking.source_id, true)}>Пришла</button><button type="button" onClick={() => sendCommand("attendance", booking.source_id, false)}>Не пришла</button><button type="button" onClick={() => sendCommand("cancel_booking", booking.source_id)}>Отменить</button></div> : null}</div>) : <p className="empty-operation">Пока никто не записан.</p>}</div> : null}

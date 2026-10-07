@@ -21,5 +21,12 @@ export async function POST(request: Request) {
     requested_by: user.id,
   });
   if (error) return NextResponse.json({ error: "Не удалось передать создание доступа" }, { status: 500 });
+  await supabase.from("crm_audit_log").insert({
+    actor_id: user.id,
+    action: "issue_client_access",
+    entity_type: "client",
+    entity_source_id: body.clientSourceId,
+    details: { state: "queued", message: "Создание клиентского кабинета передано боту" },
+  });
   return NextResponse.json({ ok: true, message: "Бот создаст доступ и отправит его клиенту в Telegram" });
 }
