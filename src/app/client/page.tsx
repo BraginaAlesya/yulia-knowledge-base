@@ -19,5 +19,11 @@ export default async function ClientPage() {
     .in("status", ["waiting", "offered"])
     .order("created_at", { ascending: true });
 
-  return <ClientCabinet snapshot={{ ...data, waitlist: waitlist ?? [] }} referenceNow={new Date().toISOString()} />;
+  const { data: notificationPreferences } = await supabase
+    .from("crm_notification_preferences")
+    .select("web_enabled")
+    .eq("account_id", user.id)
+    .maybeSingle();
+
+  return <ClientCabinet snapshot={{ ...data, waitlist: waitlist ?? [] }} referenceNow={new Date().toISOString()} webNotificationsEnabled={Boolean(notificationPreferences?.web_enabled)} />;
 }

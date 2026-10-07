@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import InstallAppPrompt from "@/components/install-app-prompt";
+import WebNotificationSettings from "@/components/web-notification-settings";
 
 type ClientProfile = {
   source_id: number;
@@ -30,7 +31,7 @@ function membershipLabel(plan: string) {
   return plan.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function ClientCabinet({ snapshot, referenceNow }: { snapshot: Snapshot; referenceNow: string }) {
+export default function ClientCabinet({ snapshot, referenceNow, webNotificationsEnabled }: { snapshot: Snapshot; referenceNow: string; webNotificationsEnabled: boolean }) {
   const [selectedClientId, setSelectedClientId] = useState(snapshot.clients.find((client) => client.is_default)?.source_id ?? snapshot.clients[0]?.source_id ?? null);
   const [notice, setNotice] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -103,12 +104,12 @@ export default function ClientCabinet({ snapshot, referenceNow }: { snapshot: Sn
         {notice ? <p className="client-notice">{notice}</p> : null}
       </section>
 
-      {profileOpen ? <ProfileSheet client={activeClient} onClose={() => setProfileOpen(false)} onSaved={(message) => setNotice(message)} /> : null}
+      {profileOpen ? <ProfileSheet client={activeClient} webNotificationsEnabled={webNotificationsEnabled} onClose={() => setProfileOpen(false)} onSaved={(message) => setNotice(message)} /> : null}
     </main>
   );
 }
 
-function ProfileSheet({ client, onClose, onSaved }: { client: ClientProfile; onClose: () => void; onSaved: (message: string) => void }) {
+function ProfileSheet({ client, webNotificationsEnabled, onClose, onSaved }: { client: ClientProfile; webNotificationsEnabled: boolean; onClose: () => void; onSaved: (message: string) => void }) {
   const [phone, setPhone] = useState(client.phone ?? "");
   const [email, setEmail] = useState(client.email ?? "");
   const [password, setPassword] = useState("");
@@ -126,5 +127,5 @@ function ProfileSheet({ client, onClose, onSaved }: { client: ClientProfile; onC
     onClose();
   }
 
-  return <div className="client-sheet-backdrop" role="presentation" onMouseDown={onClose}><section className="client-sheet" role="dialog" aria-modal="true" aria-label="Мой профиль" onMouseDown={(event) => event.stopPropagation()}><button className="client-sheet-close" type="button" onClick={onClose}>×</button><small>МОЙ ПРОФИЛЬ</small><h2>{client.full_name}</h2><p>Имя меняет администратор, чтобы записи всегда оставались корректными.</p><label>Телефон<input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" /></label><label>Почта для связи<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" /></label><label>Новый пароль <small>необязательно, от 10 символов</small><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" /></label>{state === "error" ? <p className="client-error">Не удалось сохранить данные. Проверьте пароль и попробуйте ещё раз.</p> : null}<button type="button" className="client-save" disabled={state === "saving"} onClick={save}>{state === "saving" ? "Сохраняем…" : "Сохранить"}</button></section></div>;
+  return <div className="client-sheet-backdrop" role="presentation" onMouseDown={onClose}><section className="client-sheet" role="dialog" aria-modal="true" aria-label="Мой профиль" onMouseDown={(event) => event.stopPropagation()}><button className="client-sheet-close" type="button" onClick={onClose}>×</button><small>МОЙ ПРОФИЛЬ</small><h2>{client.full_name}</h2><p>Имя меняет администратор, чтобы записи всегда оставались корректными.</p><label>Телефон<input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" /></label><label>Почта для связи<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" /></label><label>Новый пароль <small>необязательно, от 10 символов</small><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" /></label>{state === "error" ? <p className="client-error">Не удалось сохранить данные. Проверьте пароль и попробуйте ещё раз.</p> : null}<button type="button" className="client-save" disabled={state === "saving"} onClick={save}>{state === "saving" ? "Сохраняем…" : "Сохранить"}</button><WebNotificationSettings initialEnabled={webNotificationsEnabled} /></section></div>;
 }
