@@ -21,7 +21,7 @@ create policy "Client reads own CRM profile" on public.crm_clients
 for select to authenticated
 using (
   (select public.current_role()) = 'client'
-  and source_id = any((select public.current_client_source_ids()))
+  and source_id = any(public.current_client_source_ids())
 );
 
 drop policy if exists "Client reads own memberships" on public.crm_memberships;
@@ -29,7 +29,7 @@ create policy "Client reads own memberships" on public.crm_memberships
 for select to authenticated
 using (
   (select public.current_role()) = 'client'
-  and client_source_id = any((select public.current_client_source_ids()))
+  and client_source_id = any(public.current_client_source_ids())
 );
 
 drop policy if exists "Client reads own bookings" on public.crm_bookings;
@@ -37,7 +37,7 @@ create policy "Client reads own bookings" on public.crm_bookings
 for select to authenticated
 using (
   (select public.current_role()) = 'client'
-  and client_source_id = any((select public.current_client_source_ids()))
+  and client_source_id = any(public.current_client_source_ids())
 );
 
 drop policy if exists "Clients read active sessions" on public.crm_sessions;
@@ -69,14 +69,14 @@ with check (
       and booking_source_id is null
       and (payload ? 'clientSourceId')
       and (payload ? 'sessionSourceId')
-      and ((payload ->> 'clientSourceId')::bigint = any((select public.current_client_source_ids())))
+      and ((payload ->> 'clientSourceId')::bigint = any(public.current_client_source_ids()))
     )
     or (
       action = 'cancel_booking'
       and exists (
         select 1 from public.crm_bookings booking
         where booking.source_id = crm_operation_commands.booking_source_id
-          and booking.client_source_id = any((select public.current_client_source_ids()))
+          and booking.client_source_id = any(public.current_client_source_ids())
       )
     )
   )
@@ -97,7 +97,7 @@ set search_path = public
 as $$
 begin
   if (select public.current_role()) <> 'client'
-     or not target_client_source_id = any((select public.current_client_source_ids())) then
+     or not target_client_source_id = any(public.current_client_source_ids()) then
     raise exception 'Недостаточно прав';
   end if;
 
