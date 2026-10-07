@@ -12,6 +12,7 @@ type Booking = { source_id: number; client_source_id: number; session_source_id:
 type Funnel = { client_source_id: number; status: string; updated_at: string | null };
 type Trainer = { source_id: number; display_name: string };
 type AccountLink = { account_id: string; client_source_id: number };
+type HealthNote = { client_source_id: number; note_text: string; consent_at: string; updated_at: string };
 type AuditRecord = { id: string; action: string; entity_type: string; entity_source_id: number | null; details: Record<string, unknown>; created_at: string };
 
 const formatMoney = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
@@ -32,7 +33,7 @@ function auditLabel(record: AuditRecord) {
   return ({ attendance: "Обновлено посещение", cancel_booking: "Отменена запись", book_session: "Создана запись", join_waitlist: "Клиент добавлен в лист ожидания", finish_session: "Практика завершена", issue_client_access: "Открыт клиентский кабинет", family_linked: "Связаны семейные профили" } as Record<string, string>)[record.action] ?? "Обновлены данные";
 }
 
-export default function OperationsDashboard({ name, clients, memberships, payments, sessions, bookings, funnel, trainers, accountLinks, auditRecords, referenceNow, lastSyncedAt, sourceReady }: {
+export default function OperationsDashboard({ name, clients, memberships, payments, sessions, bookings, funnel, trainers, accountLinks, healthNotes, auditRecords, referenceNow, lastSyncedAt, sourceReady }: {
   name: string;
   clients: Client[];
   memberships: Membership[];
@@ -42,6 +43,7 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   funnel: Funnel[];
   trainers: Trainer[];
   accountLinks: AccountLink[];
+  healthNotes: HealthNote[];
   auditRecords: AuditRecord[];
   referenceNow: string;
   lastSyncedAt: string | null;
@@ -59,6 +61,10 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   const [broadcastAudience, setBroadcastAudience] = useState<"active" | "all">("active");
   const [broadcastText, setBroadcastText] = useState("");
   const [broadcastNotice, setBroadcastNotice] = useState("");
+  const [healthClientId, setHealthClientId] = useState("");
+  const [healthNote, setHealthNote] = useState("");
+  const [healthConsent, setHealthConsent] = useState(false);
+  const [healthNotice, setHealthNotice] = useState("");
   const now = useMemo(() => new Date(referenceNow), [referenceNow]);
   const today = dateKey(referenceNow);
   const recentLimit = new Date(now);
@@ -183,6 +189,27 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
     if (response.ok) setBroadcastText("");
   }
 
+  function selectHealthClient(clientId: string) {
+    setHealthClientId(clientId);
+    const saved = healthNotes.find((note) => note.client_source_id === Number(clientId));
+    setHealthNote(saved?.note_text ?? "");
+    setHealthConsent(false);
+    setHealthNotice("");
+  }
+
+  async function saveHealthNote() {
+    if (!healthClientId || !healthConsent) return;
+    setHealthNotice("Сохраняем особые условия…");
+    const response = await fetch("/api/operations/health", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientSourceId: Number(healthClientId), note: healthNote }),
+    });
+    const payload = await response.json().catch(() => ({})) as { message?: string; error?: string };
+    setHealthNotice(response.ok ? payload.message ?? "Сохранено" : payload.error ?? "Не получилось сохранить");
+    if (response.ok) { setHealthConsent(false); router.refresh(); }
+  }
+
   return (
     <main className="operations-shell">
       <header className="operations-header">
@@ -217,7 +244,8 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
           </div>
         </section>
         <section className="operation-panel access-panel"><div className="panel-title"><div><small>Доступы к платформе</small><h2>Кому открыть кабинет</h2></div><span>{accessReady.length} готовы</span></div><p className="access-panel-intro">После покупки абонемента бот создаст доступ и отправит клиенту временный пароль в Telegram. Пароль нигде не хранится в открытом виде.</p><div className="access-queue">{accessQueue.slice(0, 8).map((client) => <div key={client.source_id}><span><strong>{client.full_name}</strong><small>{client.email || "Почта не указана"}</small></span><aside><em className={client.state === "Готов открыть доступ" ? "ready" : ""}>{client.state}</em>{client.state === "Готов открыть доступ" ? <button type="button" onClick={() => issueClientAccess(client.source_id)}>Открыть</button> : null}</aside></div>)}</div>{accessNotice ? <p className="command-notice">{accessNotice}</p> : null}</section>
-        <section className="operation-panel family-panel"><div className="panel-title"><div><small>Семейный доступ</small><h2>Родитель и ребёнок</h2></div><span>{accountLinks.filter((link) => link.client_source_id !== Number(guardianClientId)).length ? "Можно связать" : ""}</span></div><p>Один взрослый кабинет может переключаться между профилями детей. У ребёнка при этом может оставаться свой собственный вход.</p><div className="family-form"><label>Родитель<select value={guardianClientId} onChange={(event) => setGuardianClientId(event.target.value)}><option value="">Выберите клиента с кабинетом</option>{accountLinks.map((link) => <option key={link.account_id + link.client_source_id} value={link.client_source_id}>{clientById.get(link.client_source_id)?.full_name || "Клиент"}</option>)}</select></label><label>Ребёнок<select value={childClientId} onChange={(event) => setChildClientId(event.target.value)}><option value="">Выберите ребёнка</option>{clients.filter((client) => String(client.source_id) !== guardianClientId).map((client) => <option key={client.source_id} value={client.source_id}>{client.full_name}</option>)}</select></label><button type="button" disabled={!guardianClientId || !childClientId} onClick={linkFamily}>Связать</button></div>{familyNotice ? <p className="command-notice">{familyNotice}</p> : null}</section>
+        <section className="operation-panel family-panel"><div className="panel-title"><div><small>Семейный доступ</small><h2>Родитель и ребёнок</h2></div><span>{accountLinks.length ? "Можно связать" : "Сначала откройте доступ"}</span></div><p>Один взрослый кабинет может переключаться между профилями детей. У ребёнка при этом может оставаться свой собственный вход.</p><div className="family-form"><label>Родитель<select value={guardianClientId} onChange={(event) => setGuardianClientId(event.target.value)}><option value="">Выберите клиента с кабинетом</option>{accountLinks.map((link) => <option key={link.account_id + link.client_source_id} value={link.client_source_id}>{clientById.get(link.client_source_id)?.full_name || "Клиент"}</option>)}</select></label><label>Ребёнок<select value={childClientId} onChange={(event) => setChildClientId(event.target.value)}><option value="">Выберите ребёнка</option>{clients.filter((client) => String(client.source_id) !== guardianClientId).map((client) => <option key={client.source_id} value={client.source_id}>{client.full_name}</option>)}</select></label><button type="button" disabled={!guardianClientId || !childClientId} onClick={linkFamily}>Связать</button></div>{familyNotice ? <p className="command-notice">{familyNotice}</p> : null}</section>
+        <section className="operation-panel health-panel"><div className="panel-title"><div><small>Особые условия</small><h2>Что важно знать тренеру</h2></div><span>Видит только Юлия и тренер занятия</span></div><p>Здесь — только то, что клиент разрешил передать тренеру для безопасной практики. Личные контакты и финансы тренер не увидит.</p><label>Клиент<select value={healthClientId} onChange={(event) => selectHealthClient(event.target.value)}><option value="">Выберите клиента</option>{clients.map((client) => <option key={client.source_id} value={client.source_id}>{client.full_name}</option>)}</select></label><textarea value={healthNote} maxLength={2000} onChange={(event) => setHealthNote(event.target.value)} disabled={!healthClientId} placeholder="Например: бережно с коленями, избегать глубоких прогибов…" /><label className="health-consent"><input type="checkbox" checked={healthConsent} onChange={(event) => setHealthConsent(event.target.checked)} disabled={!healthClientId} /> Подтверждаю, что клиент согласовал передачу этой информации тренеру</label><div><small>{healthNote.length}/2000</small><button type="button" disabled={!healthClientId || !healthConsent} onClick={saveHealthNote}>Сохранить</button></div>{healthNotice ? <p className="command-notice">{healthNotice}</p> : null}</section>
         <section className="operation-panel audit-panel"><div className="panel-title"><div><small>История</small><h2>Последние действия</h2></div><span>Сохраняется отдельно</span></div><div className="audit-list">{auditRecords.length ? auditRecords.map((record) => <div key={record.id}><span>{formatDateTime.format(new Date(record.created_at))}</span><strong>{auditLabel(record)}</strong></div>) : <p className="empty-operation">Здесь появится история действий по кабинету, записям и доступам.</p>}</div></section>
         <section className="operation-panel broadcast-panel"><div className="panel-title"><div><small>Коммуникация</small><h2>Быстрая рассылка</h2></div><span>Telegram</span></div><p>Сообщение уйдёт через бота. Перед отправкой платформа попросит подтвердить аудиторию.</p><label>Кому<select value={broadcastAudience} onChange={(event) => setBroadcastAudience(event.target.value as "active" | "all")}><option value="active">Клиентам с активным абонементом</option><option value="all">Всем клиентам с Telegram</option></select></label><textarea value={broadcastText} maxLength={1200} onChange={(event) => setBroadcastText(event.target.value)} placeholder="Напишите сообщение клиентам…" /><div><small>{broadcastText.length}/1200</small><button type="button" disabled={!broadcastText.trim()} onClick={sendBroadcast}>Отправить через бота</button></div>{broadcastNotice ? <p className="command-notice">{broadcastNotice}</p> : null}</section>
         <section className="operation-panel schedule-panel"><div className="panel-title"><div><small>Расписание</small><h2>Ближайшие тренировки</h2></div><span>Нажмите, чтобы увидеть состав группы</span></div>
