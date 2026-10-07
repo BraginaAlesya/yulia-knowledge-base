@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#7a4c40"/>
+  <circle cx="256" cy="256" r="178" fill="#f7eee7"/>
+  <text x="256" y="322" text-anchor="middle" fill="#7a4c40" font-size="244" font-family="Georgia, serif">В</text>
+</svg>

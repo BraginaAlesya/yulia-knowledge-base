@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import InstallAppPrompt from "@/components/install-app-prompt";
 
 type ClientProfile = {
   source_id: number;
@@ -15,7 +16,8 @@ type ClientProfile = {
 type Membership = { sourceId: number; clientSourceId: number; planCode: string; practicesTotal: number; practicesLeft: number; endsAt: string | null; status: string };
 type Booking = { sourceId: number; clientSourceId: number; sessionSourceId: number | null; bookingType: string; status: string; paymentRequired: boolean; startsAt: string | null; direction: string; subtitle: string | null; createdAt: string | null };
 type Session = { sourceId: number; startsAt: string; direction: string; subtitle: string | null; capacity: number; bookedCount: number };
-type Snapshot = { clients: ClientProfile[]; memberships: Membership[]; bookings: Booking[]; sessions: Session[] };
+type Waitlist = { source_id: number; client_source_id: number; session_source_id: number; status: "waiting" | "offered"; created_at: string };
+type Snapshot = { clients: ClientProfile[]; memberships: Membership[]; bookings: Booking[]; sessions: Session[]; waitlist?: Waitlist[] };
 
 const dateTime = new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 const shortDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -39,6 +41,10 @@ export default function ClientCabinet({ snapshot, referenceNow }: { snapshot: Sn
   const history = useMemo(() => bookings.filter((booking) => booking.status !== "booked" || (booking.startsAt && new Date(booking.startsAt) < now)).slice(0, 8), [bookings, now]);
   const membership = useMemo(() => snapshot.memberships.find((item) => item.clientSourceId === activeClient?.source_id && item.status === "active" && item.practicesLeft > 0) ?? snapshot.memberships.find((item) => item.clientSourceId === activeClient?.source_id), [activeClient?.source_id, snapshot.memberships]);
   const bookedSessionIds = new Set(upcomingBookings.map((booking) => booking.sessionSourceId).filter((id): id is number => id !== null));
+  const waitlist = useMemo(() => snapshot.waitlist ?? [], [snapshot.waitlist]);
+  const activeWaitlist = useMemo(() => waitlist.filter((item) => item.client_source_id === activeClient?.source_id), [activeClient?.source_id, waitlist]);
+  const waitlistedSessionIds = new Set(activeWaitlist.map((item) => item.session_source_id));
+  const sessionById = useMemo(() => new Map(snapshot.sessions.map((session) => [session.sourceId, session])), [snapshot.sessions]);
   const availableSessions = snapshot.sessions.filter((session) => !bookedSessionIds.has(session.sourceId)).slice(0, 8);
 
   async function sendCommand(action: "book_session" | "join_waitlist" | "cancel_booking", ids: { sessionSourceId?: number; bookingSourceId?: number }) {
@@ -65,6 +71,7 @@ export default function ClientCabinet({ snapshot, referenceNow }: { snapshot: Sn
       </header>
 
       <section className="client-body">
+        <InstallAppPrompt />
         <div className="client-welcome"><small>МОЁ ПРОСТРАНСТВО</small><h1>Здравствуйте, {activeClient.full_name.split(" ")[0]}!</h1><p>Записи, пакет практик и всё важное — здесь.</p></div>
 
         {snapshot.clients.length > 1 ? <div className="client-switcher"><span>Сейчас смотрим:</span>{snapshot.clients.map((client) => <button type="button" key={client.source_id} className={client.source_id === activeClient.source_id ? "chosen" : ""} onClick={() => setSelectedClientId(client.source_id)}>{client.relationship === "guardian" ? `Ребёнок · ${client.full_name}` : client.full_name}</button>)}</div> : null}
@@ -79,9 +86,14 @@ export default function ClientCabinet({ snapshot, referenceNow }: { snapshot: Sn
           {membership ? <><h2>{membershipLabel(membership.planCode)}</h2><strong>{membership.practicesLeft} <small>из {membership.practicesTotal} практик осталось</small></strong><p>{membership.endsAt ? `Действует до ${shortDate.format(new Date(`${membership.endsAt}T12:00:00`))}` : "Срок уточняется"}</p></> : <><h2>Пакета пока нет</h2><p>Можно записаться на одну практику. Оплату Юля подтвердит отдельно.</p></>}
         </section>
 
+        {activeWaitlist.length ? <section className="client-card waitlist-card">
+          <div className="client-card-heading"><small>ЛИСТ ОЖИДАНИЯ</small><span>{activeWaitlist.length}</span></div>
+          {activeWaitlist.map((item) => { const session = sessionById.get(item.session_source_id); return <div className="waitlist-row" key={item.source_id}><div><strong>{session?.direction || "Практика"}</strong><p>{session ? dateTime.format(new Date(session.startsAt)) : "Время уточняется"}</p></div><em>{item.status === "offered" ? "Место предложено" : "Ждём место"}</em></div>; })}
+        </section> : null}
+
         <section className="client-section">
           <div className="client-section-heading"><div><small>ЗАПИСАТЬСЯ</small><h2>Ближайшие практики</h2></div><span>Все доступны вам</span></div>
-          <div className="client-session-list">{availableSessions.length ? availableSessions.map((session) => { const full = session.bookedCount >= session.capacity; return <article key={session.sourceId} className="client-session"><time>{dateTime.format(new Date(session.startsAt))}</time><div><strong>{session.direction}</strong><span>{session.subtitle || "Групповая практика"}</span></div><em>{session.bookedCount}/{session.capacity}</em><button type="button" onClick={() => sendCommand(full ? "join_waitlist" : "book_session", { sessionSourceId: session.sourceId })}>{full ? "В лист ожидания" : "Записаться"}</button></article>; }) : <p className="client-empty-list">Пока нет ближайших практик.</p>}</div>
+          <div className="client-session-list">{availableSessions.length ? availableSessions.map((session) => { const full = session.bookedCount >= session.capacity; const waiting = waitlistedSessionIds.has(session.sourceId); return <article key={session.sourceId} className="client-session"><time>{dateTime.format(new Date(session.startsAt))}</time><div><strong>{session.direction}</strong><span>{session.subtitle || "Групповая практика"}</span></div><em>{session.bookedCount}/{session.capacity}</em><button type="button" disabled={waiting} onClick={() => sendCommand(full ? "join_waitlist" : "book_session", { sessionSourceId: session.sourceId })}>{waiting ? "Вы в ожидании" : full ? "В лист ожидания" : "Записаться"}</button></article>; }) : <p className="client-empty-list">Пока нет ближайших практик.</p>}</div>
         </section>
 
         <section className="client-section">

@@ -13,5 +13,11 @@ export default async function ClientPage() {
   const { data, error } = await supabase.rpc("my_client_cabinet_snapshot");
   if (error || !data) redirect("/access-pending");
 
-  return <ClientCabinet snapshot={data} referenceNow={new Date().toISOString()} />;
+  const { data: waitlist } = await supabase
+    .from("crm_waitlist")
+    .select("source_id, client_source_id, session_source_id, status, created_at")
+    .in("status", ["waiting", "offered"])
+    .order("created_at", { ascending: true });
+
+  return <ClientCabinet snapshot={{ ...data, waitlist: waitlist ?? [] }} referenceNow={new Date().toISOString()} />;
 }
