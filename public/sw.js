@@ -16,7 +16,12 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  const payload = event.data ? event.data.json() : {};
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : "Есть новое обновление в вашем кабинете." };
+  }
   event.waitUntil(self.registration.showNotification(payload.title || "Взмах к себе", {
     body: payload.body || "Есть новое обновление в вашем кабинете.",
     icon: "/app-icon.svg",

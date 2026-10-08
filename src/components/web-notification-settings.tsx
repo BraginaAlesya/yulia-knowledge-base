@@ -84,7 +84,7 @@ export default function WebNotificationSettings({ initialPreferences }: { initia
   return <section className="web-notification-settings">
     <small>УВЕДОМЛЕНИЯ</small>
     <strong>В приложении</strong>
-    <p>Напоминания и изменения расписания будут приходить на это устройство. Telegram можно оставить дополнительным каналом.</p>
+    <p>Рассылки от Юлии и важные изменения из платформы будут приходить на это устройство. Telegram можно оставить дополнительным каналом.</p>
     <button type="button" onClick={enabled ? disable : enable} disabled={saving}>{saving ? "Сохраняем…" : enabled ? "Отключить на этом устройстве" : "Включить уведомления"}</button>
     <label className="telegram-notification-toggle"><input type="checkbox" checked={telegramEnabled} disabled={saving} onChange={(event) => updateTelegram(event.target.checked)} /> Получать сообщения от платформы в Telegram</label>
     {notice ? <span>{notice}</span> : null}
