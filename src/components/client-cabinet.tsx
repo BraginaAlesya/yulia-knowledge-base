@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import InstallAppPrompt from "@/components/install-app-prompt";
 import WebNotificationSettings from "@/components/web-notification-settings";
 
@@ -32,6 +33,7 @@ function membershipLabel(plan: string) {
 }
 
 export default function ClientCabinet({ snapshot, referenceNow, notificationPreferences }: { snapshot: Snapshot; referenceNow: string; notificationPreferences: { webEnabled: boolean; telegramEnabled: boolean } }) {
+  const router = useRouter();
   const [selectedClientId, setSelectedClientId] = useState(snapshot.clients.find((client) => client.is_default)?.source_id ?? snapshot.clients[0]?.source_id ?? null);
   const [notice, setNotice] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -48,6 +50,11 @@ export default function ClientCabinet({ snapshot, referenceNow, notificationPref
   const waitlistedSessionIds = new Set(activeWaitlist.map((item) => item.session_source_id));
   const sessionById = useMemo(() => new Map(snapshot.sessions.map((session) => [session.sourceId, session])), [snapshot.sessions]);
   const availableSessions = snapshot.sessions.filter((session) => !bookedSessionIds.has(session.sourceId)).slice(0, 8);
+
+  useEffect(() => {
+    const refresh = window.setInterval(() => router.refresh(), 60_000);
+    return () => window.clearInterval(refresh);
+  }, [router]);
 
   function isLateCancellation(booking: Booking) {
     if (!booking.startsAt) return false;

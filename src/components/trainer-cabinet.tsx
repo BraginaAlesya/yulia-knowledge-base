@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Booking = { sourceId: number; status: string; bookingType: string; firstName: string; photoUrl: string | null; healthNote: string | null };
 type Session = { sourceId: number; startsAt: string; direction: string; subtitle: string | null; capacity: number; completedAt: string | null; bookings: Booking[] };
@@ -15,12 +16,18 @@ function bookingLabel(status: string) {
 }
 
 export default function TrainerCabinet({ snapshot, referenceNow }: { snapshot: Snapshot; referenceNow: string }) {
+  const router = useRouter();
   const now = useMemo(() => new Date(referenceNow), [referenceNow]);
   const [notice, setNotice] = useState("");
   const [openNote, setOpenNote] = useState<number | null>(null);
   const sessions = useMemo(() => snapshot.sessions.map((session) => ({ ...session, starts: new Date(session.startsAt) })), [snapshot.sessions]);
   const currentSession = sessions.find((session) => session.starts <= now && !session.completedAt) ?? sessions.find((session) => !session.completedAt) ?? null;
   const upcoming = sessions.filter((session) => session.starts >= now && session.sourceId !== currentSession?.sourceId).slice(0, 8);
+
+  useEffect(() => {
+    const refresh = window.setInterval(() => router.refresh(), 60_000);
+    return () => window.clearInterval(refresh);
+  }, [router]);
 
   async function send(action: "attendance" | "finish_session", payload: { bookingSourceId?: number; attended?: boolean; sessionSourceId?: number }) {
     setNotice("Передаём действие…");
