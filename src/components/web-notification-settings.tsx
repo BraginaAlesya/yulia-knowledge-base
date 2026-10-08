@@ -9,16 +9,17 @@ function base64ToUint8Array(value: string) {
   return Uint8Array.from(raw, (character) => character.charCodeAt(0));
 }
 
-export default function WebNotificationSettings({ initialEnabled }: { initialEnabled: boolean }) {
-  const [enabled, setEnabled] = useState(initialEnabled);
+export default function WebNotificationSettings({ initialPreferences }: { initialPreferences: { webEnabled: boolean; telegramEnabled: boolean } }) {
+  const [enabled, setEnabled] = useState(initialPreferences.webEnabled);
+  const [telegramEnabled, setTelegramEnabled] = useState(initialPreferences.telegramEnabled);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
 
-  async function savePreference(webEnabled: boolean) {
+  async function savePreference(webEnabled: boolean, nextTelegramEnabled = telegramEnabled) {
     const response = await fetch("/api/client/notifications", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ webEnabled }),
+      body: JSON.stringify({ webEnabled, telegramEnabled: nextTelegramEnabled }),
     });
     return response.ok;
   }
@@ -32,6 +33,17 @@ export default function WebNotificationSettings({ initialEnabled }: { initialEna
       else await savePreference(false);
       setEnabled(false);
       setNotice("Уведомления в приложении отключены на этом устройстве.");
+    } catch {
+      setNotice("Не удалось изменить настройку. Попробуйте ещё раз.");
+    } finally { setSaving(false); }
+  }
+
+  async function updateTelegram(nextValue: boolean) {
+    setSaving(true);
+    try {
+      if (!await savePreference(enabled, nextValue)) throw new Error("save failed");
+      setTelegramEnabled(nextValue);
+      setNotice(nextValue ? "Telegram-уведомления включены." : "Telegram-уведомления отключены.");
     } catch {
       setNotice("Не удалось изменить настройку. Попробуйте ещё раз.");
     } finally { setSaving(false); }
@@ -74,6 +86,7 @@ export default function WebNotificationSettings({ initialEnabled }: { initialEna
     <strong>В приложении</strong>
     <p>Напоминания и изменения расписания будут приходить на это устройство. Telegram можно оставить дополнительным каналом.</p>
     <button type="button" onClick={enabled ? disable : enable} disabled={saving}>{saving ? "Сохраняем…" : enabled ? "Отключить на этом устройстве" : "Включить уведомления"}</button>
+    <label className="telegram-notification-toggle"><input type="checkbox" checked={telegramEnabled} disabled={saving} onChange={(event) => updateTelegram(event.target.checked)} /> Получать сообщения от платформы в Telegram</label>
     {notice ? <span>{notice}</span> : null}
   </section>;
 }

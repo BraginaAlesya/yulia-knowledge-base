@@ -13,11 +13,12 @@ export async function PATCH(request: Request) {
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role !== "client") return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
 
-  const body = await request.json() as { webEnabled?: boolean };
-  if (typeof body.webEnabled !== "boolean") return NextResponse.json({ error: "Некорректная настройка" }, { status: 400 });
+  const body = await request.json() as { webEnabled?: boolean; telegramEnabled?: boolean };
+  if (typeof body.webEnabled !== "boolean" || typeof body.telegramEnabled !== "boolean") return NextResponse.json({ error: "Некорректная настройка" }, { status: 400 });
   const { error } = await supabase.from("crm_notification_preferences").upsert({
     account_id: user.id,
     web_enabled: body.webEnabled,
+    telegram_enabled: body.telegramEnabled,
     updated_at: new Date().toISOString(),
   }, { onConflict: "account_id" });
   if (error) return NextResponse.json({ error: "Не удалось сохранить настройку" }, { status: 500 });

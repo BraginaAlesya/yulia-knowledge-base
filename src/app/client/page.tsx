@@ -21,9 +21,9 @@ export default async function ClientPage() {
 
   const { data: notificationPreferences } = await supabase
     .from("crm_notification_preferences")
-    .select("web_enabled")
+    .select("web_enabled, telegram_enabled")
     .eq("account_id", user.id)
     .maybeSingle();
 
-  return <ClientCabinet snapshot={{ ...data, waitlist: waitlist ?? [] }} referenceNow={new Date().toISOString()} webNotificationsEnabled={Boolean(notificationPreferences?.web_enabled)} />;
+  return <ClientCabinet snapshot={{ ...data, waitlist: waitlist ?? [] }} referenceNow={new Date().toISOString()} notificationPreferences={{ webEnabled: Boolean(notificationPreferences?.web_enabled), telegramEnabled: notificationPreferences?.telegram_enabled ?? true }} />;
 }

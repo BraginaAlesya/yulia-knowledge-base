@@ -5,8 +5,12 @@
 create table if not exists public.crm_notification_preferences (
   account_id uuid primary key references public.profiles(id) on delete cascade,
   web_enabled boolean not null default false,
+  telegram_enabled boolean not null default true,
   updated_at timestamptz not null default now()
 );
+
+alter table public.crm_notification_preferences
+  add column if not exists telegram_enabled boolean not null default true;
 
 create table if not exists public.crm_web_push_subscriptions (
   id uuid primary key default gen_random_uuid(),
