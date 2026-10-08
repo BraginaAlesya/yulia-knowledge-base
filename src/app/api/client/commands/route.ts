@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     clientSourceId?: number;
     sessionSourceId?: number;
     bookingSourceId?: number;
+    confirmedLateCancel?: boolean;
   };
   const action = body.action;
   if (!action || !["book_session", "join_waitlist", "cancel_booking"].includes(action)) {
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     const { error } = await supabase.from("crm_operation_commands").insert({
       action,
       booking_source_id: body.bookingSourceId,
+      payload: { confirmedLateCancel: body.confirmedLateCancel === true },
       requested_by: user.id,
     });
     if (error) return NextResponse.json({ error: "Не удалось передать отмену" }, { status: 500 });

@@ -48,7 +48,20 @@ export default function ClientCabinet({ snapshot, referenceNow, notificationPref
   const sessionById = useMemo(() => new Map(snapshot.sessions.map((session) => [session.sourceId, session])), [snapshot.sessions]);
   const availableSessions = snapshot.sessions.filter((session) => !bookedSessionIds.has(session.sourceId)).slice(0, 8);
 
-  async function sendCommand(action: "book_session" | "join_waitlist" | "cancel_booking", ids: { sessionSourceId?: number; bookingSourceId?: number }) {
+  function isLateCancellation(booking: Booking) {
+    if (!booking.startsAt) return false;
+    const starts = new Date(booking.startsAt);
+    const cutoff = new Date(starts);
+    if (starts.getHours() < 11) {
+      cutoff.setDate(cutoff.getDate() - 1);
+      cutoff.setHours(21, 0, 0, 0);
+    } else {
+      cutoff.setHours(cutoff.getHours() - 5);
+    }
+    return now > cutoff;
+  }
+
+  async function sendCommand(action: "book_session" | "join_waitlist" | "cancel_booking", ids: { sessionSourceId?: number; bookingSourceId?: number; confirmedLateCancel?: boolean }) {
     if (!activeClient) return;
     setNotice("Передаём запрос…");
     const response = await fetch("/api/client/commands", {
@@ -58,6 +71,12 @@ export default function ClientCabinet({ snapshot, referenceNow, notificationPref
     });
     const payload = await response.json().catch(() => ({})) as { message?: string; error?: string };
     setNotice(response.ok ? `${payload.message ?? "Готово"}. Бот обновит кабинет в течение минуты.` : payload.error ?? "Не получилось выполнить запрос. Попробуйте ещё раз.");
+  }
+
+  function cancelBooking(booking: Booking) {
+    const late = isLateCancellation(booking);
+    if (late && !window.confirm("До практики осталось менее разрешённого срока отмены. Запись будет отменена, а одна практика спишется с абонемента. Продолжить?")) return;
+    void sendCommand("cancel_booking", { bookingSourceId: booking.sourceId, confirmedLateCancel: late });
   }
 
   if (!activeClient) {
@@ -79,7 +98,7 @@ export default function ClientCabinet({ snapshot, referenceNow, notificationPref
 
         <section className="client-card next-practice">
           <div className="client-card-heading"><small>БЛИЖАЙШАЯ ПРАКТИКА</small><span>{upcomingBookings.length ? "Вы записаны" : "Записи пока нет"}</span></div>
-          {upcomingBookings[0] ? <><h2>{upcomingBookings[0].direction}</h2><p>{upcomingBookings[0].startsAt ? dateTime.format(new Date(upcomingBookings[0].startsAt)) : "Время уточняется"}</p>{upcomingBookings[0].paymentRequired ? <em>Нужно оплатить занятие у Юли</em> : null}<button type="button" className="quiet-action" onClick={() => sendCommand("cancel_booking", { bookingSourceId: upcomingBookings[0].sourceId })}>Отменить запись</button></> : <><h2>Выберите удобную практику</h2><p>Свободные места и лист ожидания — внизу экрана.</p></>}
+          {upcomingBookings[0] ? <><h2>{upcomingBookings[0].direction}</h2><p>{upcomingBookings[0].startsAt ? dateTime.format(new Date(upcomingBookings[0].startsAt)) : "Время уточняется"}</p>{upcomingBookings[0].paymentRequired ? <em>Нужно оплатить занятие у Юли</em> : null}<button type="button" className="quiet-action" onClick={() => cancelBooking(upcomingBookings[0])}>Отменить запись</button><small className="cancellation-rule">Отмена без списания — до 5 часов; для утренних практик — до 21:00 накануне.</small></> : <><h2>Выберите удобную практику</h2><p>Свободные места и лист ожидания — внизу экрана.</p></>}
         </section>
 
         <section className="client-card package-card">
