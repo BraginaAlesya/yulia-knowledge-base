@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type Client = { source_id: number; full_name: string; acquisition_source: string | null; email: string | null; access_state: string };
+type Client = { source_id: number; full_name: string; acquisition_source: string | null; phone: string | null; email: string | null; access_state: string };
 type Membership = { source_id: number; client_source_id: number; practices_left: number; status: string; ends_at: string | null };
 type Payment = { source_id: number; client_source_id: number; amount: number; paid_at: string };
 type Session = { source_id: number; starts_at: string; direction: string; subtitle: string | null; capacity: number; is_active: boolean; trainer_source_id: number | null };
@@ -65,6 +65,8 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   const [healthNote, setHealthNote] = useState("");
   const [healthConsent, setHealthConsent] = useState(false);
   const [healthNotice, setHealthNotice] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientSegment, setClientSegment] = useState<"all" | "active" | "attention" | "without_access">("all");
   const now = useMemo(() => new Date(referenceNow), [referenceNow]);
   const today = dateKey(referenceNow);
   const recentLimit = new Date(now);
@@ -139,6 +141,24 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
   ] as const;
   const maxFunnel = Math.max(1, ...funnelStages.map(([stage]) => funnel.filter((item) => selectedClientIds.has(item.client_source_id) && item.status === stage).length));
   const selectedBookings = activeSession ? bookingsBySession.get(activeSession) ?? [] : [];
+  const visibleClients = useMemo(() => {
+    const query = clientSearch.trim().toLocaleLowerCase("ru-RU");
+    return clients.filter((client) => {
+      const active = activeClientIds.has(client.source_id);
+      const needsAttention = inactiveClients.includes(client.source_id) || endingMemberships.some((membership) => membership.client_source_id === client.source_id);
+      const linked = linkedClientIds.has(client.source_id);
+      const segmentMatches = clientSegment === "all" || (clientSegment === "active" && active) || (clientSegment === "attention" && needsAttention) || (clientSegment === "without_access" && active && !linked);
+      const searchable = `${client.full_name} ${client.phone ?? ""} ${client.email ?? ""} ${client.acquisition_source ?? ""}`.toLocaleLowerCase("ru-RU");
+      return segmentMatches && (!query || searchable.includes(query));
+    }).slice(0, 30);
+  }, [activeClientIds, clientSearch, clientSegment, clients, endingMemberships, inactiveClients, linkedClientIds]);
+
+  function clientStatus(client: Client) {
+    if (!activeClientIds.has(client.source_id)) return "Без активного абонемента";
+    if (endingMemberships.some((membership) => membership.client_source_id === client.source_id)) return "Пора продлить";
+    if (inactiveClients.includes(client.source_id)) return "Нет больше 7 дней";
+    return "Активна";
+  }
 
   async function sendCommand(action: "attendance" | "cancel_booking", bookingSourceId: number, attended?: boolean) {
     setNotice("Передаём действие боту…");
@@ -244,6 +264,7 @@ export default function OperationsDashboard({ name, clients, memberships, paymen
           </div>
         </section>
         <section className="operation-panel access-panel"><div className="panel-title"><div><small>Доступы к платформе</small><h2>Кому открыть кабинет</h2></div><span>{accessReady.length} готовы</span></div><p className="access-panel-intro">После покупки абонемента бот создаст доступ и отправит клиенту временный пароль в Telegram. Пароль нигде не хранится в открытом виде.</p><div className="access-queue">{accessQueue.slice(0, 8).map((client) => <div key={client.source_id}><span><strong>{client.full_name}</strong><small>{client.email || "Почта не указана"}</small></span><aside><em className={client.state === "Готов открыть доступ" ? "ready" : ""}>{client.state}</em>{client.state === "Готов открыть доступ" ? <button type="button" onClick={() => issueClientAccess(client.source_id)}>Открыть</button> : null}</aside></div>)}</div>{accessNotice ? <p className="command-notice">{accessNotice}</p> : null}</section>
+        <section className="operation-panel client-directory"><div className="panel-title"><div><small>Клиенты</small><h2>Быстрый поиск и контроль</h2></div><span>{clients.length} всего</span></div><div className="client-directory-filters"><input value={clientSearch} onChange={(event) => setClientSearch(event.target.value)} placeholder="Имя, телефон, почта или источник" /><select value={clientSegment} onChange={(event) => setClientSegment(event.target.value as "all" | "active" | "attention" | "without_access")}><option value="all">Все</option><option value="active">Только активные</option><option value="attention">Требуют внимания</option><option value="without_access">Без кабинета</option></select></div><div className="client-directory-list">{visibleClients.length ? visibleClients.map((client) => { const ready = accessQueue.find((item) => item.source_id === client.source_id)?.state === "Готов открыть доступ"; return <article key={client.source_id}><div><strong>{client.full_name}</strong><small>{client.phone || client.email || "Контакты уточняются"}</small><small>{client.acquisition_source ? `Источник: ${client.acquisition_source}` : "Источник не указан"}</small></div><aside><em className={clientStatus(client) === "Активна" ? "ok" : ""}>{clientStatus(client)}</em>{ready ? <button type="button" onClick={() => issueClientAccess(client.source_id)}>Открыть кабинет</button> : null}</aside></article>; }) : <p className="empty-operation">Никого не нашли по этим условиям.</p>}</div></section>
         <section className="operation-panel family-panel"><div className="panel-title"><div><small>Семейный доступ</small><h2>Родитель и ребёнок</h2></div><span>{accountLinks.length ? "Можно связать" : "Сначала откройте доступ"}</span></div><p>Один взрослый кабинет может переключаться между профилями детей. У ребёнка при этом может оставаться свой собственный вход.</p><div className="family-form"><label>Родитель<select value={guardianClientId} onChange={(event) => setGuardianClientId(event.target.value)}><option value="">Выберите клиента с кабинетом</option>{accountLinks.map((link) => <option key={link.account_id + link.client_source_id} value={link.client_source_id}>{clientById.get(link.client_source_id)?.full_name || "Клиент"}</option>)}</select></label><label>Ребёнок<select value={childClientId} onChange={(event) => setChildClientId(event.target.value)}><option value="">Выберите ребёнка</option>{clients.filter((client) => String(client.source_id) !== guardianClientId).map((client) => <option key={client.source_id} value={client.source_id}>{client.full_name}</option>)}</select></label><button type="button" disabled={!guardianClientId || !childClientId} onClick={linkFamily}>Связать</button></div>{familyNotice ? <p className="command-notice">{familyNotice}</p> : null}</section>
         <section className="operation-panel health-panel"><div className="panel-title"><div><small>Особые условия</small><h2>Что важно знать тренеру</h2></div><span>Видит только Юлия и тренер занятия</span></div><p>Здесь — только то, что клиент разрешил передать тренеру для безопасной практики. Личные контакты и финансы тренер не увидит.</p><label>Клиент<select value={healthClientId} onChange={(event) => selectHealthClient(event.target.value)}><option value="">Выберите клиента</option>{clients.map((client) => <option key={client.source_id} value={client.source_id}>{client.full_name}</option>)}</select></label><textarea value={healthNote} maxLength={2000} onChange={(event) => setHealthNote(event.target.value)} disabled={!healthClientId} placeholder="Например: бережно с коленями, избегать глубоких прогибов…" /><label className="health-consent"><input type="checkbox" checked={healthConsent} onChange={(event) => setHealthConsent(event.target.checked)} disabled={!healthClientId} /> Подтверждаю, что клиент согласовал передачу этой информации тренеру</label><div><small>{healthNote.length}/2000</small><button type="button" disabled={!healthClientId || !healthConsent} onClick={saveHealthNote}>Сохранить</button></div>{healthNotice ? <p className="command-notice">{healthNotice}</p> : null}</section>
         <section className="operation-panel audit-panel"><div className="panel-title"><div><small>История</small><h2>Последние действия</h2></div><span>Сохраняется отдельно</span></div><div className="audit-list">{auditRecords.length ? auditRecords.map((record) => <div key={record.id}><span>{formatDateTime.format(new Date(record.created_at))}</span><strong>{auditLabel(record)}</strong></div>) : <p className="empty-operation">Здесь появится история действий по кабинету, записям и доступам.</p>}</div></section>

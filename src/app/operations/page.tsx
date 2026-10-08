@@ -30,7 +30,7 @@ export default async function OperationsPage() {
   upcoming.setHours(0, 0, 0, 0);
 
   const [clientsResult, membershipsResult, paymentsResult, sessionsResult, bookingsResult, funnelResult, trainersResult, accountLinksResult, healthNotesResult, syncResult, auditResult] = await Promise.all([
-    supabase.from("crm_clients").select("source_id, full_name, acquisition_source, email, access_state").order("full_name"),
+    supabase.from("crm_clients").select("source_id, full_name, acquisition_source, phone, email, access_state").order("full_name"),
     supabase.from("crm_memberships").select("source_id, client_source_id, practices_left, status, ends_at"),
     supabase.from("crm_payments").select("source_id, client_source_id, amount, paid_at").gte("paid_at", since.toISOString()),
     supabase.from("crm_sessions").select("source_id, starts_at, direction, subtitle, capacity, is_active, trainer_source_id").gte("starts_at", activitySince.toISOString()).order("starts_at").limit(240),
