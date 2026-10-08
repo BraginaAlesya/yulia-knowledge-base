@@ -35,6 +35,7 @@ export default function ClientCabinet({ snapshot, referenceNow, notificationPref
   const [selectedClientId, setSelectedClientId] = useState(snapshot.clients.find((client) => client.is_default)?.source_id ?? snapshot.clients[0]?.source_id ?? null);
   const [notice, setNotice] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const activeClient = snapshot.clients.find((client) => client.source_id === selectedClientId) ?? snapshot.clients[0];
   const now = useMemo(() => new Date(referenceNow), [referenceNow]);
   const bookings = useMemo(() => snapshot.bookings.filter((booking) => booking.clientSourceId === activeClient?.source_id), [activeClient?.source_id, snapshot.bookings]);
@@ -61,7 +62,7 @@ export default function ClientCabinet({ snapshot, referenceNow, notificationPref
     return now > cutoff;
   }
 
-  async function sendCommand(action: "book_session" | "join_waitlist" | "cancel_booking", ids: { sessionSourceId?: number; bookingSourceId?: number; confirmedLateCancel?: boolean }) {
+  async function sendCommand(action: "book_session" | "join_waitlist" | "cancel_booking" | "move_booking", ids: { sessionSourceId?: number; bookingSourceId?: number; confirmedLateCancel?: boolean }) {
     if (!activeClient) return;
     setNotice("Передаём запрос…");
     const response = await fetch("/api/client/commands", {
@@ -77,6 +78,12 @@ export default function ClientCabinet({ snapshot, referenceNow, notificationPref
     const late = isLateCancellation(booking);
     if (late && !window.confirm("До практики осталось менее разрешённого срока отмены. Запись будет отменена, а одна практика спишется с абонемента. Продолжить?")) return;
     void sendCommand("cancel_booking", { bookingSourceId: booking.sourceId, confirmedLateCancel: late });
+  }
+
+  function moveBooking(booking: Booking, session: Session) {
+    if (!window.confirm(`Перенести запись на ${dateTime.format(new Date(session.startsAt))}?`)) return;
+    void sendCommand("move_booking", { bookingSourceId: booking.sourceId, sessionSourceId: session.sourceId });
+    setTransferOpen(false);
   }
 
   if (!activeClient) {
@@ -98,7 +105,7 @@ export default function ClientCabinet({ snapshot, referenceNow, notificationPref
 
         <section className="client-card next-practice">
           <div className="client-card-heading"><small>БЛИЖАЙШАЯ ПРАКТИКА</small><span>{upcomingBookings.length ? "Вы записаны" : "Записи пока нет"}</span></div>
-          {upcomingBookings[0] ? <><h2>{upcomingBookings[0].direction}</h2><p>{upcomingBookings[0].startsAt ? dateTime.format(new Date(upcomingBookings[0].startsAt)) : "Время уточняется"}</p>{upcomingBookings[0].paymentRequired ? <em>Нужно оплатить занятие у Юли</em> : null}<button type="button" className="quiet-action" onClick={() => cancelBooking(upcomingBookings[0])}>Отменить запись</button><small className="cancellation-rule">Отмена без списания — до 5 часов; для утренних практик — до 21:00 накануне.</small></> : <><h2>Выберите удобную практику</h2><p>Свободные места и лист ожидания — внизу экрана.</p></>}
+          {upcomingBookings[0] ? <><h2>{upcomingBookings[0].direction}</h2><p>{upcomingBookings[0].startsAt ? dateTime.format(new Date(upcomingBookings[0].startsAt)) : "Время уточняется"}</p>{upcomingBookings[0].paymentRequired ? <em>Нужно оплатить занятие у Юли</em> : null}<div className="client-booking-actions"><button type="button" className="quiet-action" onClick={() => cancelBooking(upcomingBookings[0])}>Отменить запись</button>{!isLateCancellation(upcomingBookings[0]) ? <button type="button" className="quiet-action" onClick={() => setTransferOpen((value) => !value)}>{transferOpen ? "Закрыть варианты" : "Перенести"}</button> : null}</div>{transferOpen ? <div className="transfer-options">{availableSessions.length ? availableSessions.map((session) => <button type="button" key={session.sourceId} onClick={() => moveBooking(upcomingBookings[0], session)}><strong>{session.direction}</strong><span>{dateTime.format(new Date(session.startsAt))}</span></button>) : <p>Подходящих свободных вариантов пока нет.</p>}</div> : null}<small className="cancellation-rule">Отмена и перенос без списания — до 5 часов; для утренних практик — до 21:00 накануне.</small></> : <><h2>Выберите удобную практику</h2><p>Свободные места и лист ожидания — внизу экрана.</p></>}
         </section>
 
         <section className="client-card package-card">

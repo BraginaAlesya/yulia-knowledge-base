@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-type Action = "book_session" | "join_waitlist" | "cancel_booking";
+type Action = "book_session" | "join_waitlist" | "cancel_booking" | "move_booking";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -23,22 +23,27 @@ export async function POST(request: Request) {
     confirmedLateCancel?: boolean;
   };
   const action = body.action;
-  if (!action || !["book_session", "join_waitlist", "cancel_booking"].includes(action)) {
+  if (!action || !["book_session", "join_waitlist", "cancel_booking", "move_booking"].includes(action)) {
     return NextResponse.json({ error: "Некорректное действие" }, { status: 400 });
   }
 
-  if (action === "cancel_booking") {
+  if (action === "cancel_booking" || action === "move_booking") {
     if (!Number.isInteger(body.bookingSourceId) || body.bookingSourceId! < 1) {
       return NextResponse.json({ error: "Не выбрана запись" }, { status: 400 });
+    }
+    if (action === "move_booking" && (!Number.isInteger(body.sessionSourceId) || body.sessionSourceId! < 1)) {
+      return NextResponse.json({ error: "Не выбрано новое время" }, { status: 400 });
     }
     const { error } = await supabase.from("crm_operation_commands").insert({
       action,
       booking_source_id: body.bookingSourceId,
-      payload: { confirmedLateCancel: body.confirmedLateCancel === true },
+      payload: action === "cancel_booking"
+        ? { confirmedLateCancel: body.confirmedLateCancel === true }
+        : { sessionSourceId: body.sessionSourceId },
       requested_by: user.id,
     });
-    if (error) return NextResponse.json({ error: "Не удалось передать отмену" }, { status: 500 });
-    return NextResponse.json({ ok: true, message: "Запрос на отмену передан" });
+    if (error) return NextResponse.json({ error: action === "move_booking" ? "Не удалось передать перенос" : "Не удалось передать отмену" }, { status: 500 });
+    return NextResponse.json({ ok: true, message: action === "move_booking" ? "Запрос на перенос передан" : "Запрос на отмену передан" });
   }
 
   if (!Number.isInteger(body.clientSourceId) || !Number.isInteger(body.sessionSourceId)
